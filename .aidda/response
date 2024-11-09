@@ -1,0 +1,249 @@
+
+File: /home/stevegt/lab/markproc/README.md
+```markdown
+# Markdown Preprocessor
+
+This project provides a Go-based preprocessor for Markdown files that
+creates anchors and links for references and headings. The tool is a
+command-line utility that reads a Markdown file from standard input
+and writes the processed content to standard output.
+
+## Features
+
+- Creates anchor links for lines starting with `[REF]:`
+- Converts `[REF]` references to links and validates them
+- Tracks other references and attempts to link them to headings using fuzzy matching
+- Prints warnings for references that cannot be conclusively matched
+
+## Usage
+
+To use the preprocessor, run it as a command in your terminal:
+
+```bash
+go run main.go < your_markdown_file.md > processed_markdown.md
+```
+
+Here, `your_markdown_file.md` is the Markdown file you want to process, and `processed_markdown.md` is the output file with processed content.
+
+### Example
+
+#### Input
+
+```markdown
+# Section One
+
+This is the first section.
+
+## Section Two
+
+This is a reference to the Section One heading [secone].
+
+Reference to the anchor below [ref1].
+
+## References
+
+[ref1]: A bibliographic reference.
+```
+
+#### Output
+
+```markdown
+<a name="secone"></a>
+# Section One [secone]
+
+This is the first section.
+
+<a name="01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546"></a>
+## Section Two
+
+This is a reference to the Section One heading [SECONE].
+
+<a name="ref1"></a>
+Reference to the anchor below [ref1].
+
+## References
+
+[ref1]: A bibliographic reference.
+```
+
+### Error Handling
+
+- If a reference does not point to a valid anchor, the program will track it as unresolved and attempt to match it against headings.
+- Warning messages are printed to stderr for unresolved references that can't be conclusively matched to a heading.
+
+## Installation
+
+Ensure you have Go installed on your system, then clone this repository and run the preprocessor using the Go run command as described in the usage section.
+
+## Contributing
+
+Contributions and improvements are welcome. Please fork the repository and submit a pull request for any changes you'd like to make.
+```
+EOF_/home/stevegt/lab/markproc/README.md
+
+File: /home/stevegt/lab/markproc/main.go
+```go
+package main
+
+import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"regexp"
+	"strings"
+
+	"github.com/stevegt/fuzzy"
+)
+
+type Reference struct {
+	Name     string
+	Line     int
+	Resolved bool
+}
+
+type Target struct {
+	Name         string
+	Heading      string
+	HeadingLower string
+}
+
+type References []Reference
+type Targets []Target
+
+var (
+	refRegexp    = regexp.MustCompile(`\[(\w+)\][^:]`)
+	extLinkRegexp = regexp.MustCompile(`^\[(\w+)\]:\s+`)
+	headerRegexp = regexp.MustCompile(`^(#+)\s+(.+)`)
+)
+
+func main() {
+	references := References{}
+	targets := Targets{}
+	scanner := bufio.NewScanner(os.Stdin)
+	writer := bufio.NewWriter(os.Stdout)
+	defer writer.Flush()
+
+	lines := []string{}
+	for scanner.Scan() {
+		line := scanner.Text()
+		lines = append(lines, line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	lines = passFindRefs(lines, &references, writer)
+	lines = passMkExterns(lines, &targets, writer)
+	lines = passMkHeads(lines, &targets, writer)
+	passLinkExterns(&references, &targets)
+	passLinkHeads(&references, &targets, writer)
+}
+
+func passFindRefs(lines []string, references *References, writer *bufio.Writer) []string {
+	newLines := []string{}
+	for i, line := range lines {
+		if refMatch := refRegexp.FindAllStringSubmatch(line, -1); len(refMatch) > 0 {
+			for _, match := range refMatch {
+				ref := match[1]
+				*references = append(*references, Reference{Name: ref, Line: i})
+				line = strings.Replace(line, fmt.Sprintf("[%s]", ref), fmt.Sprintf("[%s](#%s)", ref, ref), -1)
+			}
+		}
+		newLines = append(newLines, line)
+		writer.WriteString(line + "\n")
+	}
+	return newLines
+}
+
+func passMkExterns(lines []string, targets *Targets, writer *bufio.Writer) []string {
+	newLines := []string{}
+	for _, line := range lines {
+		if extMatch := extLinkRegexp.FindStringSubmatch(line); len(extMatch) > 0 {
+			ref := extMatch[1]
+			*targets = append(*targets, Target{Name: ref, Heading: line, HeadingLower: strings.ToLower(line)})
+			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, ref) + "\n")
+		}
+		newLines = append(newLines, line)
+	}
+	return newLines
+}
+
+func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []string {
+	hash := sha256.New()
+	for _, line := range lines {
+		hash.Write([]byte(line))
+	}
+
+	docHash := hex.EncodeToString(hash.Sum(nil))
+	newLines := []string{}
+	for _, line := range lines {
+		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			headerName := headerMatch[2]
+			headerLink := fmt.Sprintf("%s-%s", headerName, docHash)
+			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName)})
+
+			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, headerLink) + "\n")
+		}
+		newLines = append(newLines, line)
+		writer.WriteString(line + "\n")
+	}
+	return newLines
+}
+
+func passLinkExterns(references *References, targets *Targets) {
+	for i, ref := range *references {
+		for _, target := range *targets {
+			if ref.Name == target.Name {
+				(*references)[i].Resolved = true
+				break
+			}
+		}
+	}
+}
+
+func passLinkHeads(references *References, targets *Targets, writer *bufio.Writer) {
+	loweredTargets := map[string]string{}
+	for _, target := range *targets {
+		loweredTargets[target.HeadingLower] = target.Name
+	}
+
+	for _, ref := range *references {
+		if !ref.Resolved {
+			matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
+			insertionOnly := []string{}
+			for _, match := range matches {
+				if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
+					insertionOnly = append(insertionOnly, match.Original)
+				}
+			}
+			if len(insertionOnly) == 1 {
+				resolvedName := loweredTargets[insertionOnly[0]]
+				resolveReference(ref, resolvedName, writer)
+			} else {
+				if len(insertionOnly) > 1 {
+					fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
+				}
+			}
+		}
+	}
+}
+
+func resolveReference(ref Reference, resolvedName string, writer *bufio.Writer) {
+	writer.WriteString(fmt.Sprintf("[%s](#%s)\n", ref.Name, resolvedName))
+}
+
+func keys(m map[string]string) []string {
+	s := make([]string, 0, len(m))
+	for key := range m {
+		s = append(s, key)
+	}
+	return s
+}
+```
+EOF_/home/stevegt/lab/markproc/main.go
