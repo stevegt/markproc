@@ -132,9 +132,10 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 		loweredTargets[target.HeadingLower] = target.Name
 	}
 
-	// copy lines to newLines
-	newLines = lines[:]
-	for _, ref := range *references {
+	// Copy lines to newLines
+	newLines = append([]string(nil), lines...)
+
+	for i, ref := range *references {
 		if !ref.Resolved {
 			matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
 			insertionOnly := []string{}
@@ -148,9 +149,22 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 				fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
 			case 1:
 				resolvedName := loweredTargets[insertionOnly[0]]
-				// XXX rename target.Name to ref.Name
-				// XXX rewrite the anchor tag to ref.Name in newLines
-				// XXX mark ref as resolved
+				// Rename target.Name to ref.Name
+				for j, target := range *targets {
+					if target.Name == resolvedName {
+						(*targets)[j].Name = ref.Name
+					}
+				}
+
+				// Rewrite the anchor tag to ref.Name in newLines
+				for j, line := range newLines {
+					if strings.Contains(line, fmt.Sprintf(`<a name="%s"></a>`, resolvedName)) {
+						newLines[j] = strings.Replace(line, resolvedName, ref.Name, 1)
+					}
+				}
+
+				// Mark ref as resolved
+				(*references)[i].Resolved = true
 			default:
 				fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
 			}

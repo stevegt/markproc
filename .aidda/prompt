@@ -1,62 +1,17 @@
-write a proprocessor for markdown files
+write the code to implement passLinkHeads
 
-The preprocessor acts as a stdio filter, reading from stdin and
-writing to stdout. It makes multiple passes over the input, modifying
-it as it goes.  
+For each reference in the list of unresolved references, use the
+github.com/stevegt/fuzzy library to get a list of matches of the
+lowercased unresolved reference against the lowercased list of target
+headings.  Iterate over the list of matches, creating a new
+insertionsOnly list of matches that have insertions only and no
+deletions or substitutions. If the resulting insertionsOnly list has
+only one entry, replace target.Name with reference.Name, rewrite the
+anchor in the text to be the same as the reference.Name, and mark the
+reference as resolved.  If the resulting list has more than one match,
+print a warning message to stderr and continue.  If the resulting list
+has no matches, print a warning message to stderr and continue.
 
-Add these types:
-
-type Reference struct {
-    Name string  // The #name part of the link
-    Line int  // The line number of the reference
-    Resolved bool  // Whether the reference has been resolved
-}
-
-type Target struct {
-    Name string  // The #name part of the link
-    Heading string  // The full text of the heading
-    HeadingLower string  // The lowercased full text of the heading
-}
-
-type References []Reference
-
-type Targets []Target
-
-These are the passes we make over the input:
-
-- passFindRefs: For any line containing the regex '\[REF\][^:]', where
-  REF is any alphanumeric string not containing spaces, rewrite REF to
-  be a link to #REF and add an entry to the list of references.
-- passMkExterns: For any line that starts with '^\[REF\]:\s+', where
-  REF is any alphanumeric string not containing spaces, insert an
-  anchor link above that line and append an entry to the list of
-  targets.
-- passMkHeads: For any line that starts with a markdown heading, add a
-  unique generated anchor link above that line and append an
-  entry to the list of targets.  The generated anchor link should
-  by guaranteed to be unique within the document by including the
-  sha256 hash of the modified text of the entire document in the
-  anchor link.
-- passLinkExterns: For each reference in the list of references, find
-  the corresponding target in the list of targets.  If a matching
-  target is found, mark the reference as resolved.  
-- passLinkHeads: For each reference in the list of unresolved
-  references, use the github.com/stevegt/fuzzy library to get a list
-  of matches of the lowercased unresolved reference against the
-  lowercased list of target headings.  Iterate over the list of
-  matches, creating a new insertionsOnly list of matches that have
-  insertions only and no deletions or substitutions. If the resulting
-  insertionsOnly list has only one entry, replace target.Name with
-  reference.Name, rewrite the anchor in the text to be the same as the
-  reference.Name, and mark the reference as resolved.  If the resulting
-  list has more than one match, print a warning message to stderr and
-  continue.  If the resulting list has no matches, print a warning
-  message to stderr and continue.
-
-
-Create a README.md file that explains how to use the preprocessor and
-provides examples of its use.  Create a main.go file that contains the
-preprocessor code.
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 

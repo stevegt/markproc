@@ -1,4 +1,3 @@
-
 File: /home/stevegt/lab/markproc/README.md
 ```markdown
 # Markdown Preprocessor
@@ -66,18 +65,6 @@ Reference to the anchor below [ref1].
 [ref1]: A bibliographic reference.
 ```
 
-### Error Handling
-
-- If a reference does not point to a valid anchor, the program will track it as unresolved and attempt to match it against headings.
-- Warning messages are printed to stderr for unresolved references that can't be conclusively matched to a heading.
-
-## Installation
-
-Ensure you have Go installed on your system, then clone this repository and run the preprocessor using the Go run command as described in the usage section.
-
-## Contributing
-
-Contributions and improvements are welcome. Please fork the repository and submit a pull request for any changes you'd like to make.
 ```
 EOF_/home/stevegt/lab/markproc/README.md
 
@@ -113,9 +100,9 @@ type References []Reference
 type Targets []Target
 
 var (
-	refRegexp    = regexp.MustCompile(`\[(\w+)\][^:]`)
+	refRegexp     = regexp.MustCompile(`\[(\w+)\][^:]`)
 	extLinkRegexp = regexp.MustCompile(`^\[(\w+)\]:\s+`)
-	headerRegexp = regexp.MustCompile(`^(#+)\s+(.+)`)
+	headerRegexp  = regexp.MustCompile(`^(#+)\s+(.+)`)
 )
 
 func main() {
@@ -139,8 +126,13 @@ func main() {
 	lines = passFindRefs(lines, &references, writer)
 	lines = passMkExterns(lines, &targets, writer)
 	lines = passMkHeads(lines, &targets, writer)
-	passLinkExterns(&references, &targets)
-	passLinkHeads(&references, &targets, writer)
+	lines = passLinkExterns(lines, &references, &targets)
+	lines = passLinkHeads(lines, &references, &targets, writer)
+
+	for _, line := range lines {
+		writer.WriteString(line + "\n")
+	}
+	writer.Flush()
 }
 
 func passFindRefs(lines []string, references *References, writer *bufio.Writer) []string {
@@ -194,7 +186,7 @@ func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []strin
 	return newLines
 }
 
-func passLinkExterns(references *References, targets *Targets) {
+func passLinkExterns(lines []string, references *References, targets *Targets) []string {
 	for i, ref := range *references {
 		for _, target := range *targets {
 			if ref.Name == target.Name {
@@ -203,15 +195,19 @@ func passLinkExterns(references *References, targets *Targets) {
 			}
 		}
 	}
+	return lines
 }
 
-func passLinkHeads(references *References, targets *Targets, writer *bufio.Writer) {
+func passLinkHeads(lines []string, references *References, targets *Targets, writer *bufio.Writer) (newLines []string) {
 	loweredTargets := map[string]string{}
 	for _, target := range *targets {
 		loweredTargets[target.HeadingLower] = target.Name
 	}
 
-	for _, ref := range *references {
+	// Copy lines to newLines
+	newLines = append([]string(nil), lines...)
+
+	for i, ref := range *references {
 		if !ref.Resolved {
 			matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
 			insertionOnly := []string{}
@@ -220,22 +216,34 @@ func passLinkHeads(references *References, targets *Targets, writer *bufio.Write
 					insertionOnly = append(insertionOnly, match.Original)
 				}
 			}
-			if len(insertionOnly) == 1 {
+			switch len(insertionOnly) {
+			case 0:
+				fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
+			case 1:
 				resolvedName := loweredTargets[insertionOnly[0]]
-				resolveReference(ref, resolvedName, writer)
-			} else {
-				if len(insertionOnly) > 1 {
-					fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
-				} else {
-					fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
+				// Rename target.Name to ref.Name
+				for j, target := range *targets {
+					if target.Name == resolvedName {
+						(*targets)[j].Name = ref.Name
+					}
 				}
+
+				// Rewrite the anchor tag to ref.Name in newLines
+				for j, line := range newLines {
+					if strings.Contains(line, fmt.Sprintf(`<a name="%s"></a>`, resolvedName)) {
+						newLines[j] = strings.Replace(line, resolvedName, ref.Name, 1)
+					}
+				}
+
+				// Mark ref as resolved
+				(*references)[i].Resolved = true
+			default:
+				fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
 			}
 		}
 	}
-}
 
-func resolveReference(ref Reference, resolvedName string, writer *bufio.Writer) {
-	writer.WriteString(fmt.Sprintf("[%s](#%s)\n", ref.Name, resolvedName))
+	return newLines
 }
 
 func keys(m map[string]string) []string {
