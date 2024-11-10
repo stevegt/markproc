@@ -1,3 +1,4 @@
+  
 File: /home/stevegt/lab/markproc/README.md
 ```markdown
 # Markdown Preprocessor
@@ -29,13 +30,13 @@ Here, `your_markdown_file.md` is the Markdown file you want to process, and `pro
 #### Input
 
 ```markdown
-# Section One
+# A Top-Level Heading
 
 This is the first section.
 
-## Section Two
+## A Section Heading
 
-This is a reference to the Section One heading [secone].
+This is a reference to the Section One heading [sec top].
 
 Reference to the anchor below [ref1].
 
@@ -47,23 +48,28 @@ Reference to the anchor below [ref1].
 #### Output
 
 ```markdown
-<a name="secone"></a>
-# Section One [secone]
+<a name="sec1"></a>
+# 1. A Top-Level Heading
 
 This is the first section.
 
-<a name="01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546"></a>
-## Section Two
+<a name="sec1_1"></a>
+## 1.1 A Section Heading
 
-This is a reference to the Section One heading [SECONE].
+This is a reference to the Section One heading [<a href="#sec1">sec 1</a>].
 
-<a name="ref1"></a>
-Reference to the anchor below [ref1].
+Reference to the anchor below [<a href="#ref1">ref1</a>].
 
 ## References
 
+<a name="ref1"></a>
 [ref1]: A bibliographic reference.
 ```
+
+In this example:
+
+- Internal section references use section numbers, allowing them to be easily distinguished from external references.
+- Each section heading gets a unique numeric section identifier and an associated anchor.
 
 ```
 EOF_/home/stevegt/lab/markproc/README.md
@@ -93,6 +99,7 @@ type Reference struct {
 type Target struct {
 	Name         string
 	Heading      string
+	Number       string
 	HeadingLower string
 }
 
@@ -135,6 +142,13 @@ func main() {
 	writer.Flush()
 }
 
+func generateSectionNumber(level int, index int, parentNumber string) string {
+	if parentNumber == "" {
+		return fmt.Sprintf("%d", index+1)
+	}
+	return fmt.Sprintf("%s.%d", parentNumber, index+1)
+}
+
 func passFindRefs(lines []string, references *References, writer *bufio.Writer) []string {
 	newLines := []string{}
 	for i, line := range lines {
@@ -172,13 +186,25 @@ func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []strin
 
 	docHash := hex.EncodeToString(hash.Sum(nil))
 	newLines := []string{}
+	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			level := len(headerMatch[1])
+			sectionNumbers[level-1]++
+			for i := level; i < 5; i++ {
+				sectionNumbers[i] = 0
+			}
+			var parentNumber string
+			if level > 1 {
+				parentNumber = fmt.Sprintf("%d", sectionNumbers[level-2])
+			}
+			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
 			headerName := headerMatch[2]
-			headerLink := fmt.Sprintf("%s-%s", headerName, docHash)
-			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName)})
+			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
+			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
 
 			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, headerLink) + "\n")
+			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerName)
 		}
 		newLines = append(newLines, line)
 		writer.WriteString(line + "\n")
@@ -204,7 +230,6 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 		loweredTargets[target.HeadingLower] = target.Name
 	}
 
-	// Copy lines to newLines
 	newLines = append([]string(nil), lines...)
 
 	for i, ref := range *references {
@@ -221,21 +246,29 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 				fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
 			case 1:
 				resolvedName := loweredTargets[insertionOnly[0]]
-				// Rename target.Name to ref.Name
 				for j, target := range *targets {
 					if target.Name == resolvedName {
 						(*targets)[j].Name = ref.Name
 					}
 				}
 
-				// Rewrite the anchor tag to ref.Name in newLines
 				for j, line := range newLines {
 					if strings.Contains(line, fmt.Sprintf(`<a name="%s"></a>`, resolvedName)) {
 						newLines[j] = strings.Replace(line, resolvedName, ref.Name, 1)
 					}
 				}
 
-				// Mark ref as resolved
+				for j, line := range newLines {
+					if refPattern := fmt.Sprintf("[%s]", ref.Name); strings.Contains(line, refPattern) {
+						if matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets)); len(matches) == 1 {
+							targetIndex := matches[0].Position
+							target := (*targets)[targetIndex]
+							refLink := fmt.Sprintf("[<a href=\"#%s\">sec %s</a>]", target.Name, target.Number)
+							newLines[j] = strings.Replace(line, refPattern, refLink, 1)
+						}
+					}
+				}
+
 				(*references)[i].Resolved = true
 			default:
 				fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)

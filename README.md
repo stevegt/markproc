@@ -27,13 +27,13 @@ Here, `your_markdown_file.md` is the Markdown file you want to process, and `pro
 #### Input
 
 ```markdown
-# Section One
+# A Top-Level Heading
 
 This is the first section.
 
-## Section Two
+## A Section Heading
 
-This is a reference to the Section One heading [secone].
+This is a reference to the Section One heading [sec top].
 
 Reference to the anchor below [ref1].
 
@@ -45,21 +45,26 @@ Reference to the anchor below [ref1].
 #### Output
 
 ```markdown
-<a name="secone"></a>
-# Section One [secone]
+<a name="sec1"></a>
+# 1. A Top-Level Heading
 
 This is the first section.
 
-<a name="01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546"></a>
-## Section Two
+<a name="sec1_1"></a>
+## 1.1 A Section Heading
 
-This is a reference to the Section One heading [SECONE].
+This is a reference to the Section One heading [<a href="#sec1">sec 1</a>].
 
-<a name="ref1"></a>
-Reference to the anchor below [ref1].
+Reference to the anchor below [<a href="#ref1">ref1</a>].
 
 ## References
 
+<a name="ref1"></a>
 [ref1]: A bibliographic reference.
 ```
+
+In this example:
+
+- Internal section references use section numbers, allowing them to be easily distinguished from external references.
+- Each section heading gets a unique numeric section identifier and an associated anchor.
 

@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"regexp"
@@ -21,6 +20,7 @@ type Reference struct {
 type Target struct {
 	Name         string
 	Heading      string
+	Number       string
 	HeadingLower string
 }
 
@@ -63,6 +63,13 @@ func main() {
 	writer.Flush()
 }
 
+func generateSectionNumber(level int, index int, parentNumber string) string {
+	if parentNumber == "" {
+		return fmt.Sprintf("%d", index+1)
+	}
+	return fmt.Sprintf("%s.%d", parentNumber, index+1)
+}
+
 func passFindRefs(lines []string, references *References, writer *bufio.Writer) []string {
 	newLines := []string{}
 	for i, line := range lines {
@@ -98,15 +105,26 @@ func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []strin
 		hash.Write([]byte(line))
 	}
 
-	docHash := hex.EncodeToString(hash.Sum(nil))
 	newLines := []string{}
+	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			level := len(headerMatch[1])
+			sectionNumbers[level-1]++
+			for i := level; i < 5; i++ {
+				sectionNumbers[i] = 0
+			}
+			var parentNumber string
+			if level > 1 {
+				parentNumber = fmt.Sprintf("%d", sectionNumbers[level-2])
+			}
+			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
 			headerName := headerMatch[2]
-			headerLink := fmt.Sprintf("%s-%s", headerName, docHash)
-			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName)})
+			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
+			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
 
 			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, headerLink) + "\n")
+			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerName)
 		}
 		newLines = append(newLines, line)
 		writer.WriteString(line + "\n")
@@ -136,38 +154,43 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 	newLines = append([]string(nil), lines...)
 
 	for i, ref := range *references {
-		if !ref.Resolved {
-			matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
-			insertionOnly := []string{}
-			for _, match := range matches {
-				if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
-					insertionOnly = append(insertionOnly, match.Original)
+		if ref.Resolved {
+			continue
+		}
+		matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
+		insertionOnly := []string{}
+		for _, match := range matches {
+			if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
+				insertionOnly = append(insertionOnly, match.Original)
+			}
+		}
+		switch len(insertionOnly) {
+		case 0:
+			fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
+		case 1:
+			resolvedName := loweredTargets[insertionOnly[0]]
+			// find the target
+			var target Target
+			for _, t := range *targets {
+				if target.Name == resolvedName {
+					target = t
+					break
 				}
 			}
-			switch len(insertionOnly) {
-			case 0:
-				fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
-			case 1:
-				resolvedName := loweredTargets[insertionOnly[0]]
-				// Rename target.Name to ref.Name
-				for j, target := range *targets {
-					if target.Name == resolvedName {
-						(*targets)[j].Name = ref.Name
-					}
-				}
 
-				// Rewrite the anchor tag to ref.Name in newLines
-				for j, line := range newLines {
-					if strings.Contains(line, fmt.Sprintf(`<a name="%s"></a>`, resolvedName)) {
-						newLines[j] = strings.Replace(line, resolvedName, ref.Name, 1)
-					}
-				}
+			// rewrite the reference in newLines
+			line := newLines[ref.Line]
+			linkContent := fmt.Sprintf("sec %s", target.Number)
+			link := fmt.Sprintf("[%s](#%s)", linkContent, resolvedName)
+			refStr := fmt.Sprintf("[%s]", link)
+			line = strings.Replace(line, fmt.Sprintf("[%s]", ref.Name), refStr, -1)
+			ref.Name = resolvedName
+			newLines[ref.Line] = line
 
-				// Mark ref as resolved
-				(*references)[i].Resolved = true
-			default:
-				fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
-			}
+			// Mark ref as resolved
+			(*references)[i].Resolved = true
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
 		}
 	}
 

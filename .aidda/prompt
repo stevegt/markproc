@@ -1,43 +1,38 @@
-write the code to implement passLinkHeads
+refactor to use section numbers
 
-For each reference in the list of unresolved references, use the
-github.com/stevegt/fuzzy library to get a list of matches of the
-lowercased unresolved reference against the lowercased list of target
-headings.  Iterate over the list of matches, creating a new
-insertionsOnly list of matches that have insertions only and no
-deletions or substitutions. If the resulting insertionsOnly list has
-only one entry, replace target.Name with reference.Name, rewrite the
-anchor in the text to be the same as the reference.Name, and mark the
-reference as resolved.  If the resulting list has more than one match,
-print a warning message to stderr and continue.  If the resulting list
-has no matches, print a warning message to stderr and continue.
+We want to make a distinction between external references and internal
+references. External references are to be named, while internal references
+are to be numbered. 
 
+- This helps to ensure that we don't accidentally refer to an internal
+  section when we mean to refer to an external reference or vise
+  versa.
+- It also enables the reader to quickly identify whether a reference is
+  to an internal section or an external document.
+
+External references still use acronyms and still look like [this].
+
+Internal references now use the acronyms in input e.g. [sec foo] but
+output looks like [sec 1.5.3].  The anchor name for this example would
+be sec1_5_3.
+
+In the process of converting the file, insert section numbers into the
+text of each heading. 
+
+Get rid of dochash -- use e.g. sec1_5_3 as the anchor name for headings
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
     /home/stevegt/lab/fuzzy/README.md
     README.md
     main.go
+    main_test.go
 Out: 
     README.md
     main.go
 
 .stop
 
-import (
-    "fmt"
-    "github.com/stevegt/fuzzy"
-)
+ensure there are no duplicate targets
 
-func main() {
-    target := "example"
-    candidates := []string{"samples", "examples", "simple", "examine"}
-    
-    matches := fuzzy.Match(target, candidates)
-    
-    for _, match := range matches {
-        fmt.Printf("String: %s, Score: %f, Insertions: %d, Deletions: %d, Substitutions: %d, Position: %d\n",
-            match.Original, match.Score, match.Insertions, match.Deletions, match.Substitutions, match.Position)
-    }
-}
-
+add a final verify() step to ensure all links point to valid targets 
