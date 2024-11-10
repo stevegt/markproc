@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -175,13 +176,37 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 }
 
 func TestComplexSectionStructure(t *testing.T) {
+	// Read input file
+	input, err := os.ReadFile("testdata/sections-in.md")
+	if err != nil {
+		t.Fatalf("Failed to read sections-in.md: %v", err)
+	}
+	inputLines := strings.Split(string(input), "\n")
 
-	// XXX read testdata/sections-in.md
+	// Process input with passMkHeads
+	outputLines := passMkHeads(inputLines)
 
-	// XXX feed it to passMkHeads
+	// XXX temporarily write output to file for debugging
+	err = os.WriteFile("/tmp/sections-out.md", []byte(strings.Join(outputLines, "\n")), 0644)
+	Ck(err)
 
-	// XXX read testdata/sections-out.md
+	// Read expected output
+	expected, err := os.ReadFile("testdata/sections-out.md")
+	if err != nil {
+		t.Fatalf("Failed to read sections-out.md: %v", err)
+	}
+	expectedLines := strings.Split(string(expected), "\n")
 
-	// XXX compare with the output of passMkHeads
-
+	// Compare output with expected
+	if len(outputLines) != len(expectedLines) {
+		t.Errorf("Output length (%d) does not match expected length (%d)", len(outputLines), len(expectedLines))
+	}
+	for i := 0; i < len(outputLines); i++ {
+		want := expectedLines[i]
+		have := outputLines[i]
+		// Pf("have: %q\n", have)
+		if have != want {
+			t.Fatalf("Mismatch at line %d:\nwant: %q\nhave: %q", i+1, want, have)
+		}
+	}
 }

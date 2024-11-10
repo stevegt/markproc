@@ -1,6 +1,4 @@
-generate testdata/sections-out.md
-
-
+write TestComplexSectionStructure
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -9,8 +7,9 @@ In:
     main.go
     main_test.go
     testdata/sections-in.md
-Out: 
     testdata/sections-out.md
+Out: 
+    main_test.go
 
 .stop
 

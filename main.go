@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"regexp"
@@ -104,11 +103,6 @@ func passMkExterns(lines []string) []string {
 }
 
 func passMkHeads(lines []string) []string {
-	hash := sha256.New()
-	for _, line := range lines {
-		hash.Write([]byte(line))
-	}
-
 	newLines := []string{}
 	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
 	for _, line := range lines {
