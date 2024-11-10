@@ -11,6 +11,8 @@ and writes the processed content to standard output.
 - Converts `[REF]` references to links and validates them
 - Tracks other references and attempts to link them to headings using fuzzy matching
 - Prints warnings for references that cannot be conclusively matched
+- Each section heading gets a unique numeric section identifier and an associated anchor.
+- Internal section references use section numbers, allowing them to be easily distinguished from external references.
 
 ## Usage
 
@@ -51,7 +53,7 @@ Reference to the anchor below [ref1].
 This is the first section.
 
 <a name="sec1_1"></a>
-## 1.1 A Section Heading
+## 1.1. A Section Heading
 
 This is a reference to the Section One heading [<a href="#sec1">sec 1</a>].
 
@@ -62,13 +64,4 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 <a name="ref1"></a>
 [ref1]: A bibliographic reference.
 ```
-
-In this example:
-
-- Internal section references use section numbers, allowing them to be easily distinguished from external references.
-- Each section heading gets a unique numeric section identifier and an associated anchor.
-
-### Testing
-
-Test cases have been added for each processing pass function to ensure the correct transformation of markdown content.
 

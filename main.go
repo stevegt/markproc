@@ -11,12 +11,6 @@ import (
 	"github.com/stevegt/fuzzy"
 )
 
-type Reference struct {
-	Name     string
-	Line     int
-	Resolved bool
-}
-
 type Target struct {
 	Name         string
 	Heading      string
@@ -24,13 +18,12 @@ type Target struct {
 	HeadingLower string
 }
 
-type References []Reference
-type Targets []Target
-
 var (
-	refRegexp     = regexp.MustCompile(`\[(\w+)\][^:]`)
-	extLinkRegexp = regexp.MustCompile(`^\[(\w+)\]:\s+`)
-	headerRegexp  = regexp.MustCompile(`^(#+)\s+(.+)`)
+	refRegexp        = regexp.MustCompile(`\[(\w+)\][^:]`)
+	extLinkRegexp    = regexp.MustCompile(`^\[(\w+)\]:\s+`)
+	headerRegexp     = regexp.MustCompile(`^(#+)\s+(.+)`)
+	numberedHeaderRe = regexp.MustCompile(`^(#+)\s+([\d\.]+)\s+(.+)`)
+	sectionRefRegexp = regexp.MustCompile(`\[sec\s+([^\]]+)\]`)
 )
 
 func main() {
@@ -87,12 +80,12 @@ func passLinkExterns(lines []string) []string {
 
 func passMkExterns(lines []string) []string {
 	newLines := []string{}
-	targets := Targets{}
 	for _, line := range lines {
 		if extMatch := extLinkRegexp.FindStringSubmatch(line); len(extMatch) > 0 {
 			ref := extMatch[1]
-			targets = append(targets, Target{Name: ref, Heading: line, HeadingLower: strings.ToLower(line)})
-			line = fmt.Sprintf(`<a name="%s"></a>`, ref) + line
+			// insert the anchor link before the reference
+			newLine := fmt.Sprintf(`<a name="%s"></a>`, ref)
+			newLines = append(newLines, newLine)
 		}
 		newLines = append(newLines, line)
 	}
@@ -107,7 +100,6 @@ func passMkHeads(lines []string) []string {
 
 	newLines := []string{}
 	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
-	targets := Targets{}
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
 			level := len(headerMatch[1])
@@ -120,73 +112,79 @@ func passMkHeads(lines []string) []string {
 				parentNumber = fmt.Sprintf("%d", sectionNumbers[level-2])
 			}
 			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
-			headerName := headerMatch[2]
 			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
-			targets = append(targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
 
-			line = fmt.Sprintf(`<a name="%s"></a>%s %s. %s`, headerLink, headerMatch[1], sectionNumber, headerName)
+			// insert the anchor link before the header
+			newLines = append(newLines, fmt.Sprintf(`<a name="%s"></a>`, headerLink))
+
+			// insert the section number before the header
+			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerMatch[2])
 		}
 		newLines = append(newLines, line)
 	}
 	return newLines
 }
 
-func passLinkHeads(lines []string) (newLines []string) {
-	newLines = append(newLines, lines...)
-	references := References{}
-	targets := Targets{}
-	loweredTargets := map[string]string{}
-	for _, target := range targets {
-		loweredTargets[target.HeadingLower] = target.Name
+func passLinkHeads(lines []string) []string {
+	newLines := []string{}
+	sectionTargets := map[string]Target{}
+
+	for _, line := range lines {
+		if headerMatch := numberedHeaderRe.FindStringSubmatch(line); len(headerMatch) > 0 {
+			number := headerMatch[2]
+			number = strings.TrimSuffix(number, ".")
+			text := headerMatch[3]
+			lowerText := strings.ToLower(text)
+			numStr := strings.Replace(number, ".", "_", -1)
+			name := fmt.Sprintf("sec%s", strings.Replace(numStr, ".", "_", -1))
+			sectionTargets[lowerText] = Target{Name: name, Heading: text, Number: number, HeadingLower: lowerText}
+		}
 	}
 
-	for i, ref := range references {
-		if ref.Resolved {
-			continue
-		}
-		matches := fuzzy.Match(strings.ToLower(ref.Name), keys(loweredTargets))
-		insertionOnly := []string{}
-		for _, match := range matches {
-			if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
-				insertionOnly = append(insertionOnly, match.Original)
-			}
-		}
-		switch len(insertionOnly) {
-		case 0:
-			fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
-			newLines = append(newLines, lines[ref.Line])
-		case 1:
-			resolvedName := loweredTargets[insertionOnly[0]]
-			// find the target
-			var target Target
-			for _, t := range targets {
-				if t.Name == resolvedName {
-					target = t
-					break
+	// spew.Dump(sectionTargets)
+
+	for _, line := range lines {
+		if secRefMatches := sectionRefRegexp.FindAllStringSubmatch(line, -1); secRefMatches != nil {
+			for _, match := range secRefMatches {
+				acronym := match[1]
+				lowerAcronym := strings.ToLower(acronym)
+				fuzzyMatches := fuzzy.Match(lowerAcronym, keys(sectionTargets))
+				insertionOnly := []fuzzy.MatchResult{}
+				for _, match := range fuzzyMatches {
+					if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
+						insertionOnly = append(insertionOnly, match)
+					}
+				}
+
+				// spew.Dump(insertionOnly)
+
+				switch len(insertionOnly) {
+				case 0:
+					fmt.Fprintf(os.Stderr, "Warning: [sec %s] no fuzzy match found\n", acronym)
+				case 1:
+					target := sectionTargets[insertionOnly[0].Original]
+					// spew.Dump(target)
+					anchorLink := fmt.Sprintf(`<a href="#%s">sec %s</a>`, target.Name, target.Number)
+					// spew.Dump(anchorLink)
+					oldStr := fmt.Sprintf("[sec %s]", acronym)
+					newStr := fmt.Sprintf("[%s]", anchorLink)
+					// spew.Dump(oldStr, newStr)
+					line = strings.Replace(line, oldStr, newStr, -1)
+				default:
+					fmt.Fprintf(os.Stderr, "Warning: [sec %s] multiple fuzzy matches found:\n", acronym)
+					for _, match := range insertionOnly {
+						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[match.Original].Heading)
+					}
 				}
 			}
-
-			// rewrite the reference in newLines
-			line := lines[ref.Line]
-			linkContent := fmt.Sprintf("sec %s", target.Number)
-			link := fmt.Sprintf("[%s](#%s)", linkContent, resolvedName)
-			refStr := fmt.Sprintf("[%s]", link)
-			line = strings.Replace(line, fmt.Sprintf("[%s]", ref.Name), refStr, -1)
-			ref.Name = resolvedName
-			newLines = append(newLines, line)
-
-			// Mark ref as resolved
-			references[i].Resolved = true
-		default:
-			fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
-			newLines = append(newLines, lines[ref.Line])
 		}
+		newLines = append(newLines, line)
 	}
 
 	return newLines
 }
 
-func keys(m map[string]string) []string {
+func keys(m map[string]Target) []string {
 	s := make([]string, 0, len(m))
 	for key := range m {
 		s = append(s, key)

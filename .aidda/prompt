@@ -1,10 +1,15 @@
-add a test case for each pass function
+refactor passLinkHeads to iterate over lines 
 
-Add a test case for each pass function that tests the pass function
-against a known input and expected output. This will allow for easier
-testing and debugging of the pass functions.
+Refactor the passLinkHeads function to iterate over the lines of the
+input string instead o references.
 
-Sequence the test cases in the order of the pass functions in the code.
+- create a list of lowercased section names and anchor names to use in
+  fuzzy matching
+- for each line that matches '\[sec\s+([^\]]+)\]', extract the acronym
+  and fuzzy-match it against the section names
+- if exactly one insertion-only match is found, replace the acronym in
+  the line with the section anchor name
+
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
