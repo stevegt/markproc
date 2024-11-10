@@ -104,23 +104,22 @@ func passMkExterns(lines []string) []string {
 
 func passMkHeads(lines []string) []string {
 	newLines := []string{}
-	sectionNumbers := []int{} // Dynamic slice to support any level of headings
+	sectionNumbers := []int{}
 
+	prevLevel := 0
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
 			level := len(headerMatch[1])
 			title := headerMatch[2]
 
+			if level-prevLevel > 1 {
+				fmt.Fprintf(os.Stderr, "Warning: Header level gap up: %s\n", title)
+			}
+			prevLevel = level
+
 			// Extend sectionNumbers slice if current level exceeds its length
 			for len(sectionNumbers) < level {
 				sectionNumbers = append(sectionNumbers, 0)
-			}
-
-			// Ensure that levels above the current are initialized
-			for i := 0; i < level-1; i++ {
-				if sectionNumbers[i] == 0 {
-					sectionNumbers[i] = 1
-				}
 			}
 
 			// Increment the current level's count

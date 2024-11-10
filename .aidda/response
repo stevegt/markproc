@@ -118,13 +118,6 @@ func passMkHeads(lines []string) []string {
 				sectionNumbers = append(sectionNumbers, 0)
 			}
 
-			// Ensure that levels above the current are initialized
-			for i := 0; i < level-1; i++ {
-				if sectionNumbers[i] == 0 {
-					sectionNumbers[i] = 1
-				}
-			}
-
 			// Increment the current level's count
 			sectionNumbers[level-1]++
 

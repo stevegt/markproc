@@ -201,7 +201,7 @@ func TestComplexSectionStructure(t *testing.T) {
 	if len(outputLines) != len(expectedLines) {
 		t.Errorf("Output length (%d) does not match expected length (%d)", len(outputLines), len(expectedLines))
 	}
-	for i := 0; i < len(outputLines); i++ {
+	for i := 0; i < len(expectedLines); i++ {
 		want := expectedLines[i]
 		have := outputLines[i]
 		// Pf("have: %q\n", have)

@@ -68,10 +68,10 @@
 ### 4.1.1. Section 4.1.1
 
 <a name="sec4_1_1_1"></a>
-##### 4.1.1.1. Section 4.1.1.1
+#### 4.1.1.1. Section 4.1.1.1
 
 <a name="sec4_1_1_2"></a>
-##### 4.1.1.2. Section 4.1.1.2
+#### 4.1.1.2. Section 4.1.1.2
 
 <a name="sec4_2"></a>
 ## 4.2. Section 4.2
@@ -83,18 +83,18 @@
 # 5. Section 5
 
 <a name="sec5_1"></a>
-### 5.1. Section 5.1
+## 5.1. Section 5.1
 
 <a name="sec5_1_1"></a>
-#### 5.1.1. Section 5.1.1
+### 5.1.1. Section 5.1.1
 
 <a name="sec5_1_1_1"></a>
-##### 5.1.1.1 Section 5.1.1.1
+#### 5.1.1.1. Section 5.1.1.1
 
 <a name="sec5_2"></a>
 ## 5.2. Section 5.2
 
-<a name="sec5_3_1"></a>
+<a name="sec5_2_1"></a>
 ### 5.2.1. Section 5.2.1
 
 <a name="sec6"></a>
