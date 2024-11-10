@@ -3,7 +3,7 @@
 This project provides a Go-based preprocessor for Markdown files that
 creates anchors and links for references and headings. The tool is a
 command-line utility that reads a Markdown file from standard input
-and writes the processed content to standard output.
+and writes the processed content to standard output. If the processor encounters any issues, it will return a non-zero exit code.
 
 ## Features
 
@@ -64,5 +64,3 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 
 <a name="ref1"></a>
 [ref1]: A bibliographic reference.
-```
-

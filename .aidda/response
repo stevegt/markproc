@@ -1,3 +1,4 @@
+Here are the modified files with the requested changes:
 
 File: /home/stevegt/lab/markproc/README.md
 ```markdown
@@ -6,7 +7,7 @@ File: /home/stevegt/lab/markproc/README.md
 This project provides a Go-based preprocessor for Markdown files that
 creates anchors and links for references and headings. The tool is a
 command-line utility that reads a Markdown file from standard input
-and writes the processed content to standard output.
+and writes the processed content to standard output. If the processor encounters any issues, it will return a non-zero exit code.
 
 ## Features
 
@@ -68,8 +69,6 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 <a name="ref1"></a>
 [ref1]: A bibliographic reference.
 ```
-
-```
 EOF_/home/stevegt/lab/markproc/README.md
 
 File: /home/stevegt/lab/markproc/main.go
@@ -85,6 +84,7 @@ import (
 	"strings"
 
 	"github.com/stevegt/fuzzy"
+	. "github.com/stevegt/goadapt"
 )
 
 type Target struct {
@@ -95,6 +95,7 @@ type Target struct {
 }
 
 var (
+	exitCode         = 0
 	refRegexp        = regexp.MustCompile(`\[(\w+)\][^:]`)
 	extLinkRegexp    = regexp.MustCompile(`^\[(\w+)\]:\s+`)
 	headerRegexp     = regexp.MustCompile(`^(#+)\s+(.+)`)
@@ -122,12 +123,20 @@ func main() {
 	lines = passMkHeads(lines)
 	lines = passLinkExterns(lines)
 	lines = passLinkHeads(lines)
-	verify(lines)
+	err := verify(lines)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Verification error: %v\n", err)
+		exitCode = 1
+	}
 
 	for _, line := range lines {
-		writer.WriteString(line + "\n")
+		_, err = writer.WriteString(line + "\n")
+		Ck(err)
 	}
-	writer.Flush()
+	err = writer.Flush()
+	Ck(err)
+
+	os.Exit(exitCode)
 }
 
 func generateSectionNumber(level int, index int, parentNumber string) string {
@@ -147,7 +156,7 @@ func passLinkExterns(lines []string) []string {
 				link := fmt.Sprintf(`<a href="#%s">%s</a>`, ref, ref)
 				oldStr := fmt.Sprintf("[%s]", ref)
 				newStr := fmt.Sprintf("[%s]", link)
-				line = strings.Replace(line, oldStr, newStr, -1)
+				line = strings.Replace(line, oldStr, newStr, 1) // Only replace the first occurrence
 			}
 		}
 		newLines = append(newLines, line)
@@ -218,8 +227,6 @@ func passLinkHeads(lines []string) []string {
 		}
 	}
 
-	// spew.Dump(sectionTargets)
-
 	for _, line := range lines {
 		if secRefMatches := sectionRefRegexp.FindAllStringSubmatch(line, -1); secRefMatches != nil {
 			for _, match := range secRefMatches {
@@ -233,25 +240,22 @@ func passLinkHeads(lines []string) []string {
 					}
 				}
 
-				// spew.Dump(insertionOnly)
-
 				switch len(insertionOnly) {
 				case 0:
 					fmt.Fprintf(os.Stderr, "Warning: [sec %s] no fuzzy match found\n", acronym)
+					exitCode = 1
 				case 1:
 					target := sectionTargets[insertionOnly[0].Original]
-					// spew.Dump(target)
 					anchorLink := fmt.Sprintf(`<a href="#%s">sec %s</a>`, target.Name, target.Number)
-					// spew.Dump(anchorLink)
 					oldStr := fmt.Sprintf("[sec %s]", acronym)
 					newStr := fmt.Sprintf("[%s]", anchorLink)
-					// spew.Dump(oldStr, newStr)
 					line = strings.Replace(line, oldStr, newStr, -1)
 				default:
 					fmt.Fprintf(os.Stderr, "Warning: [sec %s] multiple fuzzy matches found:\n", acronym)
 					for _, match := range insertionOnly {
 						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[match.Original].Heading)
 					}
+					exitCode = 1
 				}
 			}
 		}
@@ -261,7 +265,7 @@ func passLinkHeads(lines []string) []string {
 	return newLines
 }
 
-func verify(lines []string) {
+func verify(lines []string) (err error) {
 	links := make(map[string]bool)
 	duplicateChecker := make(map[string]bool)
 
@@ -270,7 +274,9 @@ func verify(lines []string) {
 		if nameMatch := regexp.MustCompile(`<a name="([^"]+)"></a>`).FindStringSubmatch(line); len(nameMatch) > 0 {
 			anchorName := nameMatch[1]
 			if _, exists := duplicateChecker[anchorName]; exists {
-				fmt.Fprintf(os.Stderr, "Error: Duplicate target found: #%s\n", anchorName)
+				err = fmt.Errorf("Duplicate target found: #%s", anchorName)
+				exitCode = 1
+				return
 			} else {
 				duplicateChecker[anchorName] = true
 			}
@@ -288,9 +294,12 @@ func verify(lines []string) {
 	// Verify all links point to a valid target
 	for link := range links {
 		if _, exists := duplicateChecker[link]; !exists {
-			fmt.Fprintf(os.Stderr, "Warning: Link points to an undefined target: #%s\n", link)
+			err = fmt.Errorf("Link points to an undefined target: #%s", link)
+			exitCode = 1
+			return
 		}
 	}
+	return
 }
 
 func keys(m map[string]Target) []string {
@@ -313,6 +322,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	. "github.com/stevegt/goadapt"
 )
 
 func TestPassMkExterns(t *testing.T) {
@@ -409,12 +420,18 @@ func TestVerify(t *testing.T) {
 		`<a name="sec1"></a>`,
 	}
 
-	verify(lines)
+	err := verify(lines)
+	Tassert(t, err != nil, "verify did not catch any errors")
 
-	// Here we will use a log capturing mechanism if available to ensure the correct logs are printed.
-	// Since there's no native way to intercept `fmt.Fprintf(os.Stderr, ...)` logs in tests without redirecting os.Stderr,
-	// we assume the function works by design.
-	// Note: Proper testing of stderr output may require additional setup not shown here.
+	lines = []string{
+		`<a name="sec1"></a>`,
+		`# 1. Title`,
+		`<a href="#sec1">link to title</a>`,
+		`<a href="http://example.com">link to example</a>`,
+	}
+
+	err = verify(lines)
+	Tassert(t, err == nil, "verify failed: %v", err)
 }
 
 func TestMarkdownPreprocessor(t *testing.T) {

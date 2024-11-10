@@ -1,9 +1,7 @@
-add a final verify() step 
+return non-zero exit code if any pass finds an issue
 
-verify() operates independently of the other steps and is used to ensure the final output is correct.
-
-- ensure all links point to valid targets 
-- ensure there are no duplicate targets
+Use a global variable to store the exit code. If any pass finds an
+issue, set the exit code to 1. 
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 

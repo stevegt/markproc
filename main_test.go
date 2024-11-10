@@ -106,6 +106,16 @@ func TestVerify(t *testing.T) {
 
 	err := verify(lines)
 	Tassert(t, err != nil, "verify did not catch any errors")
+
+	lines = []string{
+		`<a name="sec1"></a>`,
+		`# 1. Title`,
+		`<a href="#sec1">link to title</a>`,
+		`<a href="http://example.com">link to example</a>`,
+	}
+
+	err = verify(lines)
+	Tassert(t, err == nil, "verify failed: %v", err)
 }
 
 func TestMarkdownPreprocessor(t *testing.T) {

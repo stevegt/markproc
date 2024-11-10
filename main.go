@@ -20,6 +20,7 @@ type Target struct {
 }
 
 var (
+	exitCode         = 0
 	refRegexp        = regexp.MustCompile(`\[(\w+)\][^:]`)
 	extLinkRegexp    = regexp.MustCompile(`^\[(\w+)\]:\s+`)
 	headerRegexp     = regexp.MustCompile(`^(#+)\s+(.+)`)
@@ -48,7 +49,10 @@ func main() {
 	lines = passLinkExterns(lines)
 	lines = passLinkHeads(lines)
 	err := verify(lines)
-	Ck(err)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Verification error: %v\n", err)
+		exitCode = 1
+	}
 
 	for _, line := range lines {
 		_, err = writer.WriteString(line + "\n")
@@ -56,6 +60,8 @@ func main() {
 	}
 	err = writer.Flush()
 	Ck(err)
+
+	os.Exit(exitCode)
 }
 
 func generateSectionNumber(level int, index int, parentNumber string) string {
@@ -146,8 +152,6 @@ func passLinkHeads(lines []string) []string {
 		}
 	}
 
-	// spew.Dump(sectionTargets)
-
 	for _, line := range lines {
 		if secRefMatches := sectionRefRegexp.FindAllStringSubmatch(line, -1); secRefMatches != nil {
 			for _, match := range secRefMatches {
@@ -161,25 +165,22 @@ func passLinkHeads(lines []string) []string {
 					}
 				}
 
-				// spew.Dump(insertionOnly)
-
 				switch len(insertionOnly) {
 				case 0:
 					fmt.Fprintf(os.Stderr, "Warning: [sec %s] no fuzzy match found\n", acronym)
+					exitCode = 1
 				case 1:
 					target := sectionTargets[insertionOnly[0].Original]
-					// spew.Dump(target)
 					anchorLink := fmt.Sprintf(`<a href="#%s">sec %s</a>`, target.Name, target.Number)
-					// spew.Dump(anchorLink)
 					oldStr := fmt.Sprintf("[sec %s]", acronym)
 					newStr := fmt.Sprintf("[%s]", anchorLink)
-					// spew.Dump(oldStr, newStr)
 					line = strings.Replace(line, oldStr, newStr, -1)
 				default:
 					fmt.Fprintf(os.Stderr, "Warning: [sec %s] multiple fuzzy matches found:\n", acronym)
 					for _, match := range insertionOnly {
 						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[match.Original].Heading)
 					}
+					exitCode = 1
 				}
 			}
 		}
@@ -199,6 +200,7 @@ func verify(lines []string) (err error) {
 			anchorName := nameMatch[1]
 			if _, exists := duplicateChecker[anchorName]; exists {
 				err = fmt.Errorf("Duplicate target found: #%s", anchorName)
+				exitCode = 1
 				return
 			} else {
 				duplicateChecker[anchorName] = true
@@ -218,6 +220,7 @@ func verify(lines []string) (err error) {
 	for link := range links {
 		if _, exists := duplicateChecker[link]; !exists {
 			err = fmt.Errorf("Link points to an undefined target: #%s", link)
+			exitCode = 1
 			return
 		}
 	}
