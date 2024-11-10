@@ -34,8 +34,6 @@ var (
 )
 
 func main() {
-	references := References{}
-	targets := Targets{}
 	scanner := bufio.NewScanner(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
 	defer writer.Flush()
@@ -51,11 +49,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	lines = passFindRefs(lines, &references, writer)
-	lines = passMkExterns(lines, &targets, writer)
-	lines = passMkHeads(lines, &targets, writer)
-	lines = passLinkExterns(lines, &references, &targets)
-	lines = passLinkHeads(lines, &references, &targets, writer)
+	lines = passFindRefs(lines)
+	lines = passMkExterns(lines)
+	lines = passMkHeads(lines)
+	lines = passLinkExterns(lines)
+	lines = passLinkHeads(lines)
 
 	for _, line := range lines {
 		writer.WriteString(line + "\n")
@@ -70,36 +68,35 @@ func generateSectionNumber(level int, index int, parentNumber string) string {
 	return fmt.Sprintf("%s.%d", parentNumber, index+1)
 }
 
-func passFindRefs(lines []string, references *References, writer *bufio.Writer) []string {
+func passFindRefs(lines []string) []string {
 	newLines := []string{}
-	for i, line := range lines {
+	for _, line := range lines {
 		if refMatch := refRegexp.FindAllStringSubmatch(line, -1); len(refMatch) > 0 {
 			for _, match := range refMatch {
 				ref := match[1]
-				*references = append(*references, Reference{Name: ref, Line: i})
 				line = strings.Replace(line, fmt.Sprintf("[%s]", ref), fmt.Sprintf("[%s](#%s)", ref, ref), -1)
 			}
 		}
 		newLines = append(newLines, line)
-		writer.WriteString(line + "\n")
 	}
 	return newLines
 }
 
-func passMkExterns(lines []string, targets *Targets, writer *bufio.Writer) []string {
+func passMkExterns(lines []string) []string {
 	newLines := []string{}
+	targets := Targets{}
 	for _, line := range lines {
 		if extMatch := extLinkRegexp.FindStringSubmatch(line); len(extMatch) > 0 {
 			ref := extMatch[1]
-			*targets = append(*targets, Target{Name: ref, Heading: line, HeadingLower: strings.ToLower(line)})
-			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, ref) + "\n")
+			targets = append(targets, Target{Name: ref, Heading: line, HeadingLower: strings.ToLower(line)})
+			line = fmt.Sprintf(`<a name="%s"></a>`, ref) + line
 		}
 		newLines = append(newLines, line)
 	}
 	return newLines
 }
 
-func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []string {
+func passMkHeads(lines []string) []string {
 	hash := sha256.New()
 	for _, line := range lines {
 		hash.Write([]byte(line))
@@ -107,6 +104,7 @@ func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []strin
 
 	newLines := []string{}
 	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
+	targets := Targets{}
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
 			level := len(headerMatch[1])
@@ -121,22 +119,22 @@ func passMkHeads(lines []string, targets *Targets, writer *bufio.Writer) []strin
 			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
 			headerName := headerMatch[2]
 			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
-			*targets = append(*targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
+			targets = append(targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
 
-			writer.WriteString(fmt.Sprintf(`<a name="%s"></a>`, headerLink) + "\n")
-			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerName)
+			line = fmt.Sprintf(`<a name="%s"></a>%s %s. %s`, headerLink, headerMatch[1], sectionNumber, headerName)
 		}
 		newLines = append(newLines, line)
-		writer.WriteString(line + "\n")
 	}
 	return newLines
 }
 
-func passLinkExterns(lines []string, references *References, targets *Targets) []string {
-	for i, ref := range *references {
-		for _, target := range *targets {
+func passLinkExterns(lines []string) []string {
+	references := References{}
+	targets := Targets{}
+	for i, ref := range references {
+		for _, target := range targets {
 			if ref.Name == target.Name {
-				(*references)[i].Resolved = true
+				references[i].Resolved = true
 				break
 			}
 		}
@@ -144,16 +142,16 @@ func passLinkExterns(lines []string, references *References, targets *Targets) [
 	return lines
 }
 
-func passLinkHeads(lines []string, references *References, targets *Targets, writer *bufio.Writer) (newLines []string) {
+func passLinkHeads(lines []string) []string {
+	newLines := []string{}
+	references := References{}
+	targets := Targets{}
 	loweredTargets := map[string]string{}
-	for _, target := range *targets {
+	for _, target := range targets {
 		loweredTargets[target.HeadingLower] = target.Name
 	}
 
-	// Copy lines to newLines
-	newLines = append([]string(nil), lines...)
-
-	for i, ref := range *references {
+	for i, ref := range references {
 		if ref.Resolved {
 			continue
 		}
@@ -171,7 +169,7 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 			resolvedName := loweredTargets[insertionOnly[0]]
 			// find the target
 			var target Target
-			for _, t := range *targets {
+			for _, t := range targets {
 				if target.Name == resolvedName {
 					target = t
 					break
@@ -179,18 +177,19 @@ func passLinkHeads(lines []string, references *References, targets *Targets, wri
 			}
 
 			// rewrite the reference in newLines
-			line := newLines[ref.Line]
+			line := lines[ref.Line]
 			linkContent := fmt.Sprintf("sec %s", target.Number)
 			link := fmt.Sprintf("[%s](#%s)", linkContent, resolvedName)
 			refStr := fmt.Sprintf("[%s]", link)
 			line = strings.Replace(line, fmt.Sprintf("[%s]", ref.Name), refStr, -1)
 			ref.Name = resolvedName
-			newLines[ref.Line] = line
+			newLines = append(newLines, line)
 
 			// Mark ref as resolved
-			(*references)[i].Resolved = true
+			references[i].Resolved = true
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: Multiple matches for unresolved reference [%s]\n", ref.Name)
+			newLines = append(newLines, lines[ref.Line])
 		}
 	}
 

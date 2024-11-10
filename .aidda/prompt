@@ -1,25 +1,14 @@
-refactor to use section numbers
+only pass lines between each pass function
 
-We want to make a distinction between external references and internal
-references. External references are to be named, while internal references
-are to be numbered. 
+In order to better decouple the passes, only pass lines between each
+pass function. This will allow for better testing and easier
+debugging.
 
-- This helps to ensure that we don't accidentally refer to an internal
-  section when we mean to refer to an external reference or vise
-  versa.
-- It also enables the reader to quickly identify whether a reference is
-  to an internal section or an external document.
+This does mean that each pass function will need to be responsible for
+re-parsing the lines into the appropriate data structures that each
+stores internally.
 
-External references still use acronyms and still look like [this].
-
-Internal references now use the acronyms in input e.g. [sec foo] but
-output looks like [sec 1.5.3].  The anchor name for this example would
-be sec1_5_3.
-
-In the process of converting the file, insert section numbers into the
-text of each heading. 
-
-Get rid of dochash -- use e.g. sec1_5_3 as the anchor name for headings
+Remove the references and targets from argument lists for the pass functions.
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
