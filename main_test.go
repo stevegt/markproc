@@ -193,24 +193,56 @@ func TestComplexSectionStructure(t *testing.T) {
 	}
 
 	// Randomly shuffle the sections
-	rand.Shuffle(len(sections), func(i, j int) { sections[i], sections[j] = sections[j], sections[i] })
+	rand.Shuffle(len(sections), func(i, j int) {
+		sections[i], sections[j] = sections[j], sections[i]
+	})
 
-	// XXX Calculate the expected section numbers
-
-	// run the input through passMkHeads
-	inlines := strings.Join(sections, "\n")
+	// Run the input through passMkHeads
+	inlines := sections
 	outlines := passMkHeads(inlines)
 
-	// XXX Parse outlines and check if the section numbers are
-	// correctly ordered
+	expectedNums := generateExpectedSectionNumbers(inlines)
 
+	// Check if the section numbers are correctly ordered
 	index := 0
 	for _, num := range expectedNums {
-		if idx := strings.Index(actualOutput, num); idx != -1 {
+		if idx := findSection(outlines, num); idx != -1 {
 			if idx < index {
 				t.Errorf("section numbers are not correctly ordered for %s", num)
 			}
 			index = idx
 		}
 	}
+}
+
+// Helper function to generate expected section numbers based on input order
+func generateExpectedSectionNumbers(lines []string) []string {
+	sectionNumbers := make([]int, 5) // Support for up to 5 levels of headings
+	numbers := []string{}
+	for _, line := range lines {
+		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			level := len(headerMatch[1])
+			sectionNumbers[level-1]++
+			for i := level; i < 5; i++ {
+				sectionNumbers[i] = 0
+			}
+			var parentNumber string
+			if level > 1 {
+				parentNumber = strconv.Itoa(sectionNumbers[level-2])
+			}
+			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
+			numbers = append(numbers, sectionNumber)
+		}
+	}
+	return numbers
+}
+
+// Helper function to find the section header in the output
+func findSection(lines []string, sectionNumber string) int {
+	for idx, line := range lines {
+		if strings.Contains(line, sectionNumber) {
+			return idx
+		}
+	}
+	return -1
 }

@@ -183,8 +183,7 @@ func TestComplexSectionStructure(t *testing.T) {
 	rand.Seed(1)
 
 	createSection := func(level int, index int) string {
-		content := "Content for section " + strconv.Itoa(level) + "." + strconv.Itoa(index)
-		return strings.Repeat("#", level) + " Section " + strconv.Itoa(level) + "." + strconv.Itoa(index) + "\n\n" + content
+		return strings.Repeat("#", level) + " Section " + strconv.Itoa(level) + "." + strconv.Itoa(index)
 	}
 
 	sections := []string{}
@@ -197,36 +196,58 @@ func TestComplexSectionStructure(t *testing.T) {
 	}
 
 	// Randomly shuffle the sections
-	rand.Shuffle(len(sections), func(i, j int) { sections[i], sections[j] = sections[j], sections[i] })
+	rand.Shuffle(len(sections), func(i, j int) {
+		sections[i], sections[j] = sections[j], sections[i]
+	})
 
-	// Join sections to create the document
-	input := strings.Join(sections, "\n\n")
+	// Run the input through passMkHeads
+	inlines := strings.Split(strings.Join(sections, "\n"), "\n")
+	outlines := passMkHeads(inlines)
 
-	cmd := exec.Command("go", "run", "main.go")
-	cmd.Stdin = bytes.NewReader([]byte(input))
+	expectedNums := generateExpectedSectionNumbers(inlines)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("cmd.Run() failed with %s\n", err)
-	}
-
-	actualOutput := string(output)
-
-	// Check if section numbers are correctly ordered
-	numberedHeaders := strings.Split(actualOutput, "\n")
-	prevNumber := ""
-	for _, line := range numberedHeaders {
-		if strings.HasPrefix(line, "#") {
-			splitLine := strings.Fields(line)
-			if len(splitLine) > 1 && strings.Contains(splitLine[1], ".") {
-				currNumber := splitLine[1]
-				if prevNumber != "" && currNumber <= prevNumber {
-					t.Errorf("section numbers are not correctly ordered: previous: %s, current: %s", prevNumber, currNumber)
-				}
-				prevNumber = currNumber
+	// Check if the section numbers are correctly ordered
+	index := 0
+	for _, num := range expectedNums {
+		if idx := findSection(outlines, num); idx != -1 {
+			if idx < index {
+				t.Errorf("section numbers are not correctly ordered for %s", num)
 			}
+			index = idx
 		}
 	}
+}
+
+// Helper function to generate expected section numbers based on input order
+func generateExpectedSectionNumbers(lines []string) []string {
+	sectionNumbers := make([]int, 5) // Support for up to 5 levels of headings
+	numbers := []string{}
+	for _, line := range lines {
+		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			level := len(headerMatch[1])
+			sectionNumbers[level-1]++
+			for i := level; i < 5; i++ {
+				sectionNumbers[i] = 0
+			}
+			var parentNumber string
+			if level > 1 {
+				parentNumber = strconv.Itoa(sectionNumbers[level-2])
+			}
+			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
+			numbers = append(numbers, sectionNumber)
+		}
+	}
+	return numbers
+}
+
+// Helper function to find the section header in the output
+func findSection(lines []string, sectionNumber string) int {
+	for idx, line := range lines {
+		if strings.Contains(line, sectionNumber) {
+			return idx
+		}
+	}
+	return -1
 }
 ```
 EOF_/home/stevegt/lab/markproc/main_test.go
