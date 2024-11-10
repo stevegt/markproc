@@ -63,11 +63,11 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func generateSectionNumber(level int, index int, parentNumber string) string {
+func generateSectionNumber(level int, number int, parentNumber string) string {
 	if parentNumber == "" {
-		return fmt.Sprintf("%d", index+1)
+		return fmt.Sprintf("%d", number)
 	}
-	return fmt.Sprintf("%s.%d", parentNumber, index+1)
+	return fmt.Sprintf("%s.%d", parentNumber, number)
 }
 
 func passLinkExterns(lines []string) []string {
@@ -104,36 +104,48 @@ func passMkExterns(lines []string) []string {
 
 func passMkHeads(lines []string) []string {
 	newLines := []string{}
-	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
+	sectionNumbers := []int{} // Dynamic slice to support any level of headings
+
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
 			level := len(headerMatch[1])
-			if level > 5 {
-				// Extend sectionNumbers to support more levels if necessary
-				for len(sectionNumbers) < level {
-					sectionNumbers = append(sectionNumbers, 0)
+			title := headerMatch[2]
+
+			// Extend sectionNumbers slice if current level exceeds its length
+			for len(sectionNumbers) < level {
+				sectionNumbers = append(sectionNumbers, 0)
+			}
+
+			// Ensure that levels above the current are initialized
+			for i := 0; i < level-1; i++ {
+				if sectionNumbers[i] == 0 {
+					sectionNumbers[i] = 1
 				}
 			}
+
+			// Increment the current level's count
 			sectionNumbers[level-1]++
+
+			// Reset counts for deeper levels
 			for i := level; i < len(sectionNumbers); i++ {
 				sectionNumbers[i] = 0
 			}
-			var parentNumber string
-			if level > 1 {
-				parentParts := []string{}
-				for i := 0; i < level-1; i++ {
-					parentParts = append(parentParts, fmt.Sprintf("%d", sectionNumbers[i]))
-				}
-				parentNumber = strings.Join(parentParts, ".")
+
+			// Build the section number string
+			sectionNumberParts := []string{}
+			for i := 0; i < level; i++ {
+				sectionNumberParts = append(sectionNumberParts, fmt.Sprintf("%d", sectionNumbers[i]))
 			}
-			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
+			sectionNumber := strings.Join(sectionNumberParts, ".")
+
+			// Generate the anchor link
 			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
 
-			// insert the anchor link before the header
+			// Insert the anchor link before the header
 			newLines = append(newLines, fmt.Sprintf(`<a name="%s"></a>`, headerLink))
 
-			// insert the section number before the header
-			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerMatch[2])
+			// Insert the section number after the header hashes
+			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, title)
 		}
 		newLines = append(newLines, line)
 	}
@@ -151,7 +163,7 @@ func passLinkHeads(lines []string) []string {
 			text := headerMatch[3]
 			lowerText := strings.ToLower(text)
 			numStr := strings.Replace(number, ".", "_", -1)
-			name := fmt.Sprintf("sec%s", strings.Replace(numStr, ".", "_", -1))
+			name := fmt.Sprintf("sec%s", numStr)
 			sectionTargets[lowerText] = Target{Name: name, Heading: text, Number: number, HeadingLower: lowerText}
 		}
 	}

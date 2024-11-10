@@ -1,11 +1,21 @@
-fix passMkHeads
+fix passMkHeads handling of depth gaps
 
 Compare testdata/sections-in.md and testdata/sections-out.md. The
 testdata/sections-out.md file is the expected output of the passMkHeads
 function when run with the testdata/sections-in.md file as input. 
 
-Fix the passMkHeads function in main.go so that it produces the expected
-output.
+Fix the passMkHeads function in main.go so that it properly handles
+the case where there may be a gap in the depth of the headings in the
+input. An example of this can be found in sections 4.* of the
+testdata/sections-in.md file, and the corresponding output in the
+testdata/sections-out.md file.
+
+=== RUN   TestComplexSectionStructure
+    main_test.go:209: Mismatch at line 70:
+        want: "<a name=\"sec4_1_1_1\"></a>"
+        have: "<a name=\"sec4_1_1_1_1\"></a>"
+--- FAIL: TestComplexSectionStructure (0.00s)
+
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
