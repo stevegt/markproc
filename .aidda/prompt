@@ -1,4 +1,11 @@
-write TestComplexSectionStructure
+fix passMkHeads
+
+Compare testdata/sections-in.md and testdata/sections-out.md. The
+testdata/sections-out.md file is the expected output of the passMkHeads
+function when run with the testdata/sections-in.md file as input. 
+
+Fix the passMkHeads function in main.go so that it produces the expected
+output.
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -9,7 +16,7 @@ In:
     testdata/sections-in.md
     testdata/sections-out.md
 Out: 
-    main_test.go
+    main.go
 
 .stop
 

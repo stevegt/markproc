@@ -108,13 +108,23 @@ func passMkHeads(lines []string) []string {
 	for _, line := range lines {
 		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
 			level := len(headerMatch[1])
+			if level > 5 {
+				// Extend sectionNumbers to support more levels if necessary
+				for len(sectionNumbers) < level {
+					sectionNumbers = append(sectionNumbers, 0)
+				}
+			}
 			sectionNumbers[level-1]++
-			for i := level; i < 5; i++ {
+			for i := level; i < len(sectionNumbers); i++ {
 				sectionNumbers[i] = 0
 			}
 			var parentNumber string
 			if level > 1 {
-				parentNumber = fmt.Sprintf("%d", sectionNumbers[level-2])
+				parentParts := []string{}
+				for i := 0; i < level-1; i++ {
+					parentParts = append(parentParts, fmt.Sprintf("%d", sectionNumbers[i]))
+				}
+				parentNumber = strings.Join(parentParts, ".")
 			}
 			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
 			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
@@ -153,9 +163,9 @@ func passLinkHeads(lines []string) []string {
 				lowerAcronym := strings.ToLower(acronym)
 				fuzzyMatches := fuzzy.Match(lowerAcronym, keys(sectionTargets))
 				insertionOnly := []fuzzy.MatchResult{}
-				for _, match := range fuzzyMatches {
-					if match.Insertions > 0 && match.Substitutions == 0 && match.Deletions == 0 {
-						insertionOnly = append(insertionOnly, match)
+				for _, fm := range fuzzyMatches {
+					if fm.Insertions > 0 && fm.Substitutions == 0 && fm.Deletions == 0 {
+						insertionOnly = append(insertionOnly, fm)
 					}
 				}
 
@@ -171,8 +181,8 @@ func passLinkHeads(lines []string) []string {
 					line = strings.Replace(line, oldStr, newStr, -1)
 				default:
 					fmt.Fprintf(os.Stderr, "Warning: [sec %s] multiple fuzzy matches found:\n", acronym)
-					for _, match := range insertionOnly {
-						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[match.Original].Heading)
+					for _, fm := range insertionOnly {
+						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[fm.Original].Heading)
 					}
 					exitCode = 1
 				}

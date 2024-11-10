@@ -1,218 +1,244 @@
-File: /home/stevegt/lab/markproc/main_test.go
+File: /home/stevegt/lab/markproc/main.go
 ```go
 package main
 
 import (
-	"bytes"
-	"os/exec"
-	"reflect"
+	"bufio"
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
-	"testing"
 
+	"github.com/stevegt/fuzzy"
 	. "github.com/stevegt/goadapt"
 )
 
-func TestPassMkExterns(t *testing.T) {
-	lines := []string{
-		"[ref1]: A bibliographic reference.",
-		"No externs here.",
-	}
-	expectedLines := []string{
-		`<a name="ref1"></a>`,
-		`[ref1]: A bibliographic reference.`,
-		"No externs here.",
-	}
-
-	result := passMkExterns(lines)
-	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passMkExterns failed:\nwant: %v\nhave: %v", expectedLines, result)
-	}
+type Target struct {
+	Name         string
+	Heading      string
+	Number       string
+	HeadingLower string
 }
 
-func TestPassMkHeads(t *testing.T) {
-	lines := []string{
-		"# Top-Level Header",
-		"This is a paragraph.",
-		"## Sub-Level Header",
-	}
-	expectedLines := []string{
-		`<a name="sec1"></a>`,
-		`# 1. Top-Level Header`,
-		"This is a paragraph.",
-		`<a name="sec1_1"></a>`,
-		`## 1.1. Sub-Level Header`,
+var (
+	exitCode         = 0
+	refRegexp        = regexp.MustCompile(`\[(\w+)\][^:]`)
+	extLinkRegexp    = regexp.MustCompile(`^\[(\w+)\]:\s+`)
+	headerRegexp     = regexp.MustCompile(`^(#+)\s+(.+)`)
+	numberedHeaderRe = regexp.MustCompile(`^(#+)\s+([\d\.]+)\s+(.+)`)
+	sectionRefRegexp = regexp.MustCompile(`\[sec\s+([^\]]+)\]`)
+)
+
+func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	writer := bufio.NewWriter(os.Stdout)
+	defer writer.Flush()
+
+	lines := []string{}
+	for scanner.Scan() {
+		line := scanner.Text()
+		lines = append(lines, line)
 	}
 
-	result := passMkHeads(lines)
-	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passMkHeads failed:\nwant: %v\nhave: %v", expectedLines, result)
-	}
-}
-
-func TestPassLinkExterns(t *testing.T) {
-	lines := []string{
-		"This is a [reference] to something.",
-		"This is a [sec fooee] reference.",
-		"No refs here.",
-	}
-	expectedLines := []string{
-		"This is a [<a href=\"#reference\">reference</a>] to something.",
-		"This is a [sec fooee] reference.",
-		"No refs here.",
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
+		os.Exit(1)
 	}
 
-	result := passLinkExterns(lines)
-	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passLinkExterns failed:\nwant: %v\nhave: %v", expectedLines, result)
-	}
-}
-
-func TestPassLinkHeads(t *testing.T) {
-	lines := []string{
-		"This is a [reference] to something.",
-		"This is a [sec fooee] reference.",
-		"No refs here.",
-		`<a name="sec1"></a>`,
-		`## 1. Title`,
-		`<a name="sec2_3"></a>`,
-		`## 2.3. Fun Object Overtone`,
-		`<a name="sec7_9">`,
-		`</a>## 7.9. Something`,
-	}
-	expectedLines := []string{
-		"This is a [reference] to something.",
-		"This is a [<a href=\"#sec2_3\">sec 2.3</a>] reference.",
-		"No refs here.",
-		`<a name="sec1"></a>`,
-		`## 1. Title`,
-		`<a name="sec2_3"></a>`,
-		`## 2.3. Fun Object Overtone`,
-		`<a name="sec7_9">`,
-		`</a>## 7.9. Something`,
-	}
-
-	result := passLinkHeads(lines)
-	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("\nwant: %v\nhave: %v", expectedLines, result)
-	}
-}
-
-func TestVerify(t *testing.T) {
-	lines := []string{
-		`<a name="sec1"></a>`,
-		`# 1. Title`,
-		`<a href="#sec1">link to title</a>`,
-		`<a href="#missing">link to missing</a>`,
-		`<a name="sec1"></a>`,
-	}
-
+	lines = passMkExterns(lines)
+	lines = passMkHeads(lines)
+	lines = passLinkExterns(lines)
+	lines = passLinkHeads(lines)
 	err := verify(lines)
-	Tassert(t, err != nil, "verify did not catch any errors")
-
-	lines = []string{
-		`<a name="sec1"></a>`,
-		`# 1. Title`,
-		`<a href="#sec1">link to title</a>`,
-		`<a href="http://example.com">link to example</a>`,
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Verification error: %v\n", err)
+		exitCode = 1
 	}
 
-	err = verify(lines)
-	Tassert(t, err == nil, "verify failed: %v", err)
+	for _, line := range lines {
+		_, err = writer.WriteString(line + "\n")
+		Ck(err)
+	}
+	err = writer.Flush()
+	Ck(err)
+
+	os.Exit(exitCode)
 }
 
-func TestMarkdownPreprocessor(t *testing.T) {
-	input := `# A Top-Level Header
-
-This is the first section.
-
-## A Sub-Level Header
-
-This is a reference to the Section One heading [sec top].
-
-Reference to the anchor below [ref1].
-
-## References
-
-[ref1]: A bibliographic reference.`
-
-	expectedOutput := `<a name="sec1"></a>
-# 1. A Top-Level Header
-
-This is the first section.
-
-<a name="sec1_1"></a>
-## 1.1. A Sub-Level Header
-
-This is a reference to the Section One heading [<a href="#sec1">sec 1</a>].
-
-Reference to the anchor below [<a href="#ref1">ref1</a>].
-
-<a name="sec1_2"></a>
-## 1.2. References
-
-<a name="ref1"></a>
-[ref1]: A bibliographic reference.`
-
-	cmd := exec.Command("go", "run", "main.go")
-	cmd.Stdin = bytes.NewReader([]byte(input))
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("cmd.Run() failed with %s\n", err)
+func generateSectionNumber(level int, index int, parentNumber string) string {
+	if parentNumber == "" {
+		return fmt.Sprintf("%d", index+1)
 	}
-
-	actualOutput := string(output)
-	// line-by-line comparison
-	wantLines := strings.Split(expectedOutput, "\n")
-	haveLines := strings.Split(actualOutput, "\n")
-	for i, want := range wantLines {
-		if i >= len(haveLines) {
-			t.Errorf("output is shorter than expected")
-			break
-		}
-		if want != haveLines[i] {
-			t.Errorf("line %d:\nwant: %q\nhave: %q", i, want, haveLines[i])
-		}
-	}
+	return fmt.Sprintf("%s.%d", parentNumber, index+1)
 }
 
-func TestComplexSectionStructure(t *testing.T) {
-	// Read input file
-	input, err := os.ReadFile("testdata/sections-in.md")
-	if err != nil {
-		t.Fatalf("Failed to read sections-in.md: %v", err)
-	}
-	inputLines := strings.Split(string(input), "\n")
-
-	// Process input with passMkHeads
-	outputLines := passMkHeads(inputLines)
-
-	// Read expected output
-	expected, err := os.ReadFile("testdata/sections-out.md")
-	if err != nil {
-		t.Fatalf("Failed to read sections-out.md: %v", err)
-	}
-	expectedLines := strings.Split(string(expected), "\n")
-
-	// Compare output with expected
-	if !reflect.DeepEqual(outputLines, expectedLines) {
-		// Find the first difference
-		minLen := len(outputLines)
-		if len(expectedLines) < minLen {
-			minLen = len(expectedLines)
-		}
-		for i := 0; i < minLen; i++ {
-			if outputLines[i] != expectedLines[i] {
-				t.Errorf("Mismatch at line %d:\nExpected: %q\nGot: %q", i+1, expectedLines[i], outputLines[i])
-				return
+func passLinkExterns(lines []string) []string {
+	newLines := []string{}
+	for _, line := range lines {
+		if refMatch := refRegexp.FindAllStringSubmatch(line, -1); len(refMatch) > 0 {
+			for _, match := range refMatch {
+				ref := match[1]
+				// use an HTML link, not a markdown link
+				link := fmt.Sprintf(`<a href="#%s">%s</a>`, ref, ref)
+				oldStr := fmt.Sprintf("[%s]", ref)
+				newStr := fmt.Sprintf("[%s]", link)
+				line = strings.Replace(line, oldStr, newStr, -1)
 			}
 		}
-		if len(outputLines) != len(expectedLines) {
-			t.Errorf("Output length (%d) does not match expected length (%d)", len(outputLines), len(expectedLines))
-		} else {
-			t.Errorf("Output does not match expected output.")
+		newLines = append(newLines, line)
+	}
+	return newLines
+}
+
+func passMkExterns(lines []string) []string {
+	newLines := []string{}
+	for _, line := range lines {
+		if extMatch := extLinkRegexp.FindStringSubmatch(line); len(extMatch) > 0 {
+			ref := extMatch[1]
+			// insert the anchor link before the reference
+			newLine := fmt.Sprintf(`<a name="%s"></a>`, ref)
+			newLines = append(newLines, newLine)
+		}
+		newLines = append(newLines, line)
+	}
+	return newLines
+}
+
+func passMkHeads(lines []string) []string {
+	newLines := []string{}
+	sectionNumbers := []int{0, 0, 0, 0, 0} // Support for up to 5 levels of headings
+	for _, line := range lines {
+		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
+			level := len(headerMatch[1])
+			if level > 5 {
+				// Extend sectionNumbers to support more levels if necessary
+				for len(sectionNumbers) < level {
+					sectionNumbers = append(sectionNumbers, 0)
+				}
+			}
+			sectionNumbers[level-1]++
+			for i := level; i < len(sectionNumbers); i++ {
+				sectionNumbers[i] = 0
+			}
+			var parentNumber string
+			if level > 1 {
+				parentParts := []string{}
+				for i := 0; i < level-1; i++ {
+					parentParts = append(parentParts, fmt.Sprintf("%d", sectionNumbers[i]))
+				}
+				parentNumber = strings.Join(parentParts, ".")
+			}
+			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
+			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
+
+			// insert the anchor link before the header
+			newLines = append(newLines, fmt.Sprintf(`<a name="%s"></a>`, headerLink))
+
+			// insert the section number before the header
+			line = fmt.Sprintf("%s %s. %s", headerMatch[1], sectionNumber, headerMatch[2])
+		}
+		newLines = append(newLines, line)
+	}
+	return newLines
+}
+
+func passLinkHeads(lines []string) []string {
+	newLines := []string{}
+	sectionTargets := map[string]Target{}
+
+	for _, line := range lines {
+		if headerMatch := numberedHeaderRe.FindStringSubmatch(line); len(headerMatch) > 0 {
+			number := headerMatch[2]
+			number = strings.TrimSuffix(number, ".")
+			text := headerMatch[3]
+			lowerText := strings.ToLower(text)
+			numStr := strings.Replace(number, ".", "_", -1)
+			name := fmt.Sprintf("sec%s", strings.Replace(numStr, ".", "_", -1))
+			sectionTargets[lowerText] = Target{Name: name, Heading: text, Number: number, HeadingLower: lowerText}
 		}
 	}
+
+	for _, line := range lines {
+		if secRefMatches := sectionRefRegexp.FindAllStringSubmatch(line, -1); secRefMatches != nil {
+			for _, match := range secRefMatches {
+				acronym := match[1]
+				lowerAcronym := strings.ToLower(acronym)
+				fuzzyMatches := fuzzy.Match(lowerAcronym, keys(sectionTargets))
+				insertionOnly := []fuzzy.MatchResult{}
+				for _, fm := range fuzzyMatches {
+					if fm.Insertions > 0 && fm.Substitutions == 0 && fm.Deletions == 0 {
+						insertionOnly = append(insertionOnly, fm)
+					}
+				}
+
+				switch len(insertionOnly) {
+				case 0:
+					fmt.Fprintf(os.Stderr, "Warning: [sec %s] no fuzzy match found\n", acronym)
+					exitCode = 1
+				case 1:
+					target := sectionTargets[insertionOnly[0].Original]
+					anchorLink := fmt.Sprintf(`<a href="#%s">sec %s</a>`, target.Name, target.Number)
+					oldStr := fmt.Sprintf("[sec %s]", acronym)
+					newStr := fmt.Sprintf("[%s]", anchorLink)
+					line = strings.Replace(line, oldStr, newStr, -1)
+				default:
+					fmt.Fprintf(os.Stderr, "Warning: [sec %s] multiple fuzzy matches found:\n", acronym)
+					for _, fm := range insertionOnly {
+						fmt.Fprintf(os.Stderr, "  %s\n", sectionTargets[fm.Original].Heading)
+					}
+					exitCode = 1
+				}
+			}
+		}
+		newLines = append(newLines, line)
+	}
+
+	return newLines
+}
+
+func verify(lines []string) (err error) {
+	links := make(map[string]bool)
+	duplicateChecker := make(map[string]bool)
+
+	// Collect all anchor names
+	for _, line := range lines {
+		if nameMatch := regexp.MustCompile(`<a name="([^"]+)"></a>`).FindStringSubmatch(line); len(nameMatch) > 0 {
+			anchorName := nameMatch[1]
+			if _, exists := duplicateChecker[anchorName]; exists {
+				err = fmt.Errorf("Duplicate target found: #%s", anchorName)
+				exitCode = 1
+				return
+			} else {
+				duplicateChecker[anchorName] = true
+			}
+		}
+	}
+
+	// Collect all hrefs
+	for _, line := range lines {
+		if linkMatch := regexp.MustCompile(`<a href="#([^"]+)">`).FindStringSubmatch(line); len(linkMatch) > 0 {
+			linkName := linkMatch[1]
+			links[linkName] = true
+		}
+	}
+
+	// Verify all links point to a valid target
+	for link := range links {
+		if _, exists := duplicateChecker[link]; !exists {
+			err = fmt.Errorf("Link points to an undefined target: #%s", link)
+			exitCode = 1
+			return
+		}
+	}
+	return
+}
+
+func keys(m map[string]Target) []string {
+	s := make([]string, 0, len(m))
+	for key := range m {
+		s = append(s, key)
+	}
+	return s
 }
 ```
-EOF_/home/stevegt/lab/markproc/main_test.go
+EOF_/home/stevegt/lab/markproc/main.go
