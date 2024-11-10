@@ -49,7 +49,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	lines = passFindRefs(lines)
 	lines = passMkExterns(lines)
 	lines = passMkHeads(lines)
 	lines = passLinkExterns(lines)
@@ -68,13 +67,17 @@ func generateSectionNumber(level int, index int, parentNumber string) string {
 	return fmt.Sprintf("%s.%d", parentNumber, index+1)
 }
 
-func passFindRefs(lines []string) []string {
+func passLinkExterns(lines []string) []string {
 	newLines := []string{}
 	for _, line := range lines {
 		if refMatch := refRegexp.FindAllStringSubmatch(line, -1); len(refMatch) > 0 {
 			for _, match := range refMatch {
 				ref := match[1]
-				line = strings.Replace(line, fmt.Sprintf("[%s]", ref), fmt.Sprintf("[%s](#%s)", ref, ref), -1)
+				// use an HTML link, not a markdown link
+				link := fmt.Sprintf(`<a href="#%s">%s</a>`, ref, ref)
+				oldStr := fmt.Sprintf("[%s]", ref)
+				newStr := fmt.Sprintf("[%s]", link)
+				line = strings.Replace(line, oldStr, newStr, -1)
 			}
 		}
 		newLines = append(newLines, line)
@@ -128,22 +131,8 @@ func passMkHeads(lines []string) []string {
 	return newLines
 }
 
-func passLinkExterns(lines []string) []string {
-	references := References{}
-	targets := Targets{}
-	for i, ref := range references {
-		for _, target := range targets {
-			if ref.Name == target.Name {
-				references[i].Resolved = true
-				break
-			}
-		}
-	}
-	return lines
-}
-
-func passLinkHeads(lines []string) []string {
-	newLines := []string{}
+func passLinkHeads(lines []string) (newLines []string) {
+	newLines = append(newLines, lines...)
 	references := References{}
 	targets := Targets{}
 	loweredTargets := map[string]string{}

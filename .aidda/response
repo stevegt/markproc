@@ -1,4 +1,3 @@
-
 File: /home/stevegt/lab/markproc/README.md
 ```markdown
 # Markdown Preprocessor
@@ -77,7 +76,6 @@ Test cases have been added for each processing pass function to ensure the corre
 
 ```
 EOF_/home/stevegt/lab/markproc/README.md
-
 
 File: /home/stevegt/lab/markproc/main.go
 ```go
@@ -204,7 +202,7 @@ func passMkHeads(lines []string) []string {
 			headerLink := fmt.Sprintf("sec%s", strings.Replace(sectionNumber, ".", "_", -1))
 			targets = append(targets, Target{Name: headerLink, Heading: headerName, HeadingLower: strings.ToLower(headerName), Number: sectionNumber})
 
-			line = fmt.Sprintf(`<a name="%s"></a>%s %s %s`, headerLink, headerMatch[1], sectionNumber, headerName)
+			line = fmt.Sprintf(`<a name="%s"></a>%s %s. %s`, headerLink, headerMatch[1], sectionNumber, headerName)
 		}
 		newLines = append(newLines, line)
 	}
@@ -290,7 +288,6 @@ func keys(m map[string]string) []string {
 ```
 EOF_/home/stevegt/lab/markproc/main.go
 
-
 File: /home/stevegt/lab/markproc/main_test.go
 ```go
 package main
@@ -343,12 +340,66 @@ func TestPassMkHeads(t *testing.T) {
 	expectedLines := []string{
 		`<a name="sec1"></a># 1. Top-Level Header`,
 		"This is a paragraph.",
-		`<a name="sec1_1"></a>## 1.1 Sub-Level Header`,
+		`<a name="sec1_1"></a>## 1.1. Sub-Level Header`,
 	}
 
 	result := passMkHeads(lines)
 	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passMkHeads failed:\nexpected: %v\ngot: %v", expectedLines, result)
+		t.Errorf("passMkHeads failed:\nwant: %v\nhave: %v", expectedLines, result)
+	}
+}
+
+func TestPassLinkExterns(t *testing.T) {
+	// Assuming we have access to the global variables in the original code
+	references := References{
+		{Name: "ref1", Line: 1},
+	}
+	targets := Targets{
+		{Name: "ref1", Heading: "[ref1]: A bibliographic reference."},
+	}
+
+	if len(references) == 0 || len(targets) == 0 {
+		t.Fatal("No targets or references available for testing")
+	}
+
+	lines := []string{
+		"This is some content.",
+		"[ref1]: A bibliographic reference.",
+	}
+
+	expectedLines := []string{
+		"This is some content.",
+		"[ref1]: A bibliographic reference.",
+	}
+
+	result := passLinkExterns(lines)
+	if !reflect.DeepEqual(result, expectedLines) {
+		t.Errorf("passLinkExterns failed:\nwant: %v\nhave: %v", expectedLines, result)
+	}
+}
+
+func TestPassLinkHeads(t *testing.T) {
+	// Produce outputs for unresolved references
+	references := References{
+		{Name: "unknown", Line: 2, Resolved: false},
+	}
+	targets := Targets{
+		{Name: "sec1_1", Heading: "Sub-Level Header", HeadingLower: "sub-level header"},
+	}
+
+	lines := []string{
+		"This is a section.",
+		"This reference is unresolved [unknown].",
+	}
+
+	expectedLines := []string{
+		"This is a section.",
+		"This reference is unresolved [unknown].", // Since there is no match, it should remain the same
+	}
+
+	result := passLinkHeads(lines)
+	if !reflect.DeepEqual(result, expectedLines) {
+		t.Errorf("passLinkHeads failed:\nwant: %v\nhave: %v", expectedLines, result)
 	}
 }
 

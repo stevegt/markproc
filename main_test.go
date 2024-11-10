@@ -7,22 +7,6 @@ import (
 	"testing"
 )
 
-func TestPassFindRefs(t *testing.T) {
-	lines := []string{
-		"This is a [reference] to something.",
-		"No refs here.",
-	}
-	expectedLines := []string{
-		"This is a [reference](#reference) to something.",
-		"No refs here.",
-	}
-
-	result := passFindRefs(lines)
-	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passFindRefs failed:\nexpected: %v\ngot: %v", expectedLines, result)
-	}
-}
-
 func TestPassMkExterns(t *testing.T) {
 	lines := []string{
 		"[ref1]: A bibliographic reference.",
@@ -35,7 +19,7 @@ func TestPassMkExterns(t *testing.T) {
 
 	result := passMkExterns(lines)
 	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passMkExterns failed:\nexpected: %v\ngot: %v", expectedLines, result)
+		t.Errorf("passMkExterns failed:\nwant: %v\nhave: %v", expectedLines, result)
 	}
 }
 
@@ -54,6 +38,48 @@ func TestPassMkHeads(t *testing.T) {
 	result := passMkHeads(lines)
 	if !reflect.DeepEqual(result, expectedLines) {
 		t.Errorf("passMkHeads failed:\nwant: %v\nhave: %v", expectedLines, result)
+	}
+}
+
+func TestPassLinkExterns(t *testing.T) {
+	lines := []string{
+		"This is a [reference] to something.",
+		"This is a [sec fooee] reference.",
+		"No refs here.",
+	}
+	expectedLines := []string{
+		"This is a [<a href=\"#reference\">reference</a>] to something.",
+		"This is a [sec fooee] reference.",
+		"No refs here.",
+	}
+
+	result := passLinkExterns(lines)
+	if !reflect.DeepEqual(result, expectedLines) {
+		t.Errorf("passLinkExterns failed:\nwant: %v\nhave: %v", expectedLines, result)
+	}
+}
+
+func TestPassLinkHeads(t *testing.T) {
+	lines := []string{
+		"This is a [reference] to something.",
+		"This is a [sec fooee] reference.",
+		"No refs here.",
+		"<a name=\"sec1\"></a>## 1. Title",
+		"<a name=\"sec2_3\"></a>## 2.3. Fun Object Overtone",
+		"<a name=\"sec7_9\"></a>## 7.9. Something",
+	}
+	expectedLines := []string{
+		"This is a [reference] to something.",
+		"This is a [sec 2.3] reference.",
+		"No refs here.",
+		"<a name=\"sec1\"></a>## 1. Title",
+		"<a name=\"sec2_3\"></a>## 2.3. Fun Object Overtone",
+		"<a name=\"sec7_9\"></a>## 7.9. Something",
+	}
+
+	result := passLinkHeads(lines)
+	if !reflect.DeepEqual(result, expectedLines) {
+		t.Errorf("\nwant: %v\nhave: %v", expectedLines, result)
 	}
 }
 
@@ -99,6 +125,6 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 
 	actualOutput := string(output)
 	if actualOutput != expectedOutput {
-		t.Errorf("Expected:\n%s\nGot:\n%s\n", expectedOutput, actualOutput)
+		t.Errorf("want:\n%s\nhave:\n%s\n", expectedOutput, actualOutput)
 	}
 }
