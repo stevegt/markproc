@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"math/rand"
 	"os/exec"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -170,6 +172,45 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 		}
 		if want != haveLines[i] {
 			t.Errorf("line %d:\nwant: %q\nhave: %q", i, want, haveLines[i])
+		}
+	}
+}
+
+func TestComplexSectionStructure(t *testing.T) {
+	rand.Seed(1)
+
+	createSection := func(level int, index int) string {
+		return strings.Repeat("#", level) + " Section " + strconv.Itoa(level) + "." + strconv.Itoa(index)
+	}
+
+	sections := []string{}
+	// Generate 10 sections with at least 10 subsections each
+	for i := 0; i < 10; i++ {
+		for j := 0; j < 10; j++ {
+			level := rand.Intn(5) + 1
+			sections = append(sections, createSection(level, j))
+		}
+	}
+
+	// Randomly shuffle the sections
+	rand.Shuffle(len(sections), func(i, j int) { sections[i], sections[j] = sections[j], sections[i] })
+
+	// XXX Calculate the expected section numbers
+
+	// run the input through passMkHeads
+	inlines := strings.Join(sections, "\n")
+	outlines := passMkHeads(inlines)
+
+	// XXX Parse outlines and check if the section numbers are
+	// correctly ordered
+
+	index := 0
+	for _, num := range expectedNums {
+		if idx := strings.Index(actualOutput, num); idx != -1 {
+			if idx < index {
+				t.Errorf("section numbers are not correctly ordered for %s", num)
+			}
+			index = idx
 		}
 	}
 }

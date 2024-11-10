@@ -1,7 +1,16 @@
-return non-zero exit code if any pass finds an issue
+test complex section structure
 
-Use a global variable to store the exit code. If any pass finds an
-issue, set the exit code to 1. 
+Add a test case that randomly generates an input document with a
+complex section structure. Use a seed of 1 to ensure the same
+structure is generated each time. The test case should:
+
+- Generate a document structure with at least 10 sections, each with
+  at least 10 subsections, with nesting ranging up to 5 levels deep,
+  and with higher-level sections mixed in with lower-level sections
+  in a random order.
+- Run the resulting document through passMkHeads and check that the
+  output contains the correct section numbering in anchor names and
+  heading titles. 
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -10,8 +19,6 @@ In:
     main.go
     main_test.go
 Out: 
-    README.md
-    main.go
     main_test.go
 
 .stop
