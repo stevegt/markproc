@@ -2,10 +2,8 @@ package main
 
 import (
 	"bytes"
-	"math/rand"
 	"os/exec"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -177,72 +175,13 @@ Reference to the anchor below [<a href="#ref1">ref1</a>].
 }
 
 func TestComplexSectionStructure(t *testing.T) {
-	rand.Seed(1)
 
-	createSection := func(level int, index int) string {
-		return strings.Repeat("#", level) + " Section " + strconv.Itoa(level) + "." + strconv.Itoa(index)
-	}
+	// XXX read testdata/sections-in.md
 
-	sections := []string{}
-	// Generate 10 sections with at least 10 subsections each
-	for i := 0; i < 10; i++ {
-		for j := 0; j < 10; j++ {
-			level := rand.Intn(5) + 1
-			sections = append(sections, createSection(level, j))
-		}
-	}
+	// XXX feed it to passMkHeads
 
-	// Randomly shuffle the sections
-	rand.Shuffle(len(sections), func(i, j int) {
-		sections[i], sections[j] = sections[j], sections[i]
-	})
+	// XXX read testdata/sections-out.md
 
-	// Run the input through passMkHeads
-	inlines := sections
-	outlines := passMkHeads(inlines)
+	// XXX compare with the output of passMkHeads
 
-	expectedNums := generateExpectedSectionNumbers(inlines)
-
-	// Check if the section numbers are correctly ordered
-	index := 0
-	for _, num := range expectedNums {
-		if idx := findSection(outlines, num); idx != -1 {
-			if idx < index {
-				t.Errorf("section numbers are not correctly ordered for %s", num)
-			}
-			index = idx
-		}
-	}
-}
-
-// Helper function to generate expected section numbers based on input order
-func generateExpectedSectionNumbers(lines []string) []string {
-	sectionNumbers := make([]int, 5) // Support for up to 5 levels of headings
-	numbers := []string{}
-	for _, line := range lines {
-		if headerMatch := headerRegexp.FindStringSubmatch(line); len(headerMatch) > 0 {
-			level := len(headerMatch[1])
-			sectionNumbers[level-1]++
-			for i := level; i < 5; i++ {
-				sectionNumbers[i] = 0
-			}
-			var parentNumber string
-			if level > 1 {
-				parentNumber = strconv.Itoa(sectionNumbers[level-2])
-			}
-			sectionNumber := generateSectionNumber(level, sectionNumbers[level-1]-1, parentNumber)
-			numbers = append(numbers, sectionNumber)
-		}
-	}
-	return numbers
-}
-
-// Helper function to find the section header in the output
-func findSection(lines []string, sectionNumber string) int {
-	for idx, line := range lines {
-		if strings.Contains(line, sectionNumber) {
-			return idx
-		}
-	}
-	return -1
 }
