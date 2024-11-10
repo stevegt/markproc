@@ -1,14 +1,10 @@
-only pass lines between each pass function
+add a test case for each pass function
 
-In order to better decouple the passes, only pass lines between each
-pass function. This will allow for better testing and easier
-debugging.
+Add a test case for each pass function that tests the pass function
+against a known input and expected output. This will allow for easier
+testing and debugging of the pass functions.
 
-This does mean that each pass function will need to be responsible for
-re-parsing the lines into the appropriate data structures that each
-stores internally.
-
-Remove the references and targets from argument lists for the pass functions.
+Sequence the test cases in the order of the pass functions in the code.
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -19,6 +15,7 @@ In:
 Out: 
     README.md
     main.go
+    main_test.go
 
 .stop
 

@@ -165,12 +165,13 @@ func passLinkHeads(lines []string) []string {
 		switch len(insertionOnly) {
 		case 0:
 			fmt.Fprintf(os.Stderr, "Warning: No matches for unresolved reference [%s]\n", ref.Name)
+			newLines = append(newLines, lines[ref.Line])
 		case 1:
 			resolvedName := loweredTargets[insertionOnly[0]]
 			// find the target
 			var target Target
 			for _, t := range targets {
-				if target.Name == resolvedName {
+				if t.Name == resolvedName {
 					target = t
 					break
 				}

@@ -68,3 +68,7 @@ In this example:
 - Internal section references use section numbers, allowing them to be easily distinguished from external references.
 - Each section heading gets a unique numeric section identifier and an associated anchor.
 
+### Testing
+
+Test cases have been added for each processing pass function to ensure the correct transformation of markdown content.
+
