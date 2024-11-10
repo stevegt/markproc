@@ -1,15 +1,9 @@
-refactor passLinkHeads to iterate over lines 
+add a final verify() step 
 
-Refactor the passLinkHeads function to iterate over the lines of the
-input string instead o references.
+verify() operates independently of the other steps and is used to ensure the final output is correct.
 
-- create a list of lowercased section names and anchor names to use in
-  fuzzy matching
-- for each line that matches '\[sec\s+([^\]]+)\]', extract the acronym
-  and fuzzy-match it against the section names
-- if exactly one insertion-only match is found, replace the acronym in
-  the line with the section anchor name
-
+- ensure all links point to valid targets 
+- ensure there are no duplicate targets
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -24,6 +18,4 @@ Out:
 
 .stop
 
-ensure there are no duplicate targets
 
-add a final verify() step to ensure all links point to valid targets 

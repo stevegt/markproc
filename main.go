@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/stevegt/fuzzy"
+	. "github.com/stevegt/goadapt"
 )
 
 type Target struct {
@@ -46,11 +47,15 @@ func main() {
 	lines = passMkHeads(lines)
 	lines = passLinkExterns(lines)
 	lines = passLinkHeads(lines)
+	err := verify(lines)
+	Ck(err)
 
 	for _, line := range lines {
-		writer.WriteString(line + "\n")
+		_, err = writer.WriteString(line + "\n")
+		Ck(err)
 	}
-	writer.Flush()
+	err = writer.Flush()
+	Ck(err)
 }
 
 func generateSectionNumber(level int, index int, parentNumber string) string {
@@ -182,6 +187,41 @@ func passLinkHeads(lines []string) []string {
 	}
 
 	return newLines
+}
+
+func verify(lines []string) (err error) {
+	links := make(map[string]bool)
+	duplicateChecker := make(map[string]bool)
+
+	// Collect all anchor names
+	for _, line := range lines {
+		if nameMatch := regexp.MustCompile(`<a name="([^"]+)"></a>`).FindStringSubmatch(line); len(nameMatch) > 0 {
+			anchorName := nameMatch[1]
+			if _, exists := duplicateChecker[anchorName]; exists {
+				err = fmt.Errorf("Duplicate target found: #%s", anchorName)
+				return
+			} else {
+				duplicateChecker[anchorName] = true
+			}
+		}
+	}
+
+	// Collect all hrefs
+	for _, line := range lines {
+		if linkMatch := regexp.MustCompile(`<a href="#([^"]+)">`).FindStringSubmatch(line); len(linkMatch) > 0 {
+			linkName := linkMatch[1]
+			links[linkName] = true
+		}
+	}
+
+	// Verify all links point to a valid target
+	for link := range links {
+		if _, exists := duplicateChecker[link]; !exists {
+			err = fmt.Errorf("Link points to an undefined target: #%s", link)
+			return
+		}
+	}
+	return
 }
 
 func keys(m map[string]Target) []string {

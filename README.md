@@ -13,6 +13,7 @@ and writes the processed content to standard output.
 - Prints warnings for references that cannot be conclusively matched
 - Each section heading gets a unique numeric section identifier and an associated anchor.
 - Internal section references use section numbers, allowing them to be easily distinguished from external references.
+- Final verification ensures all links have valid targets and that there are no duplicate targets.
 
 ## Usage
 

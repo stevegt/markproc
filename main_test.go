@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	. "github.com/stevegt/goadapt"
 )
 
 func TestPassMkExterns(t *testing.T) {
@@ -91,6 +93,19 @@ func TestPassLinkHeads(t *testing.T) {
 	if !reflect.DeepEqual(result, expectedLines) {
 		t.Errorf("\nwant: %v\nhave: %v", expectedLines, result)
 	}
+}
+
+func TestVerify(t *testing.T) {
+	lines := []string{
+		`<a name="sec1"></a>`,
+		`# 1. Title`,
+		`<a href="#sec1">link to title</a>`,
+		`<a href="#missing">link to missing</a>`,
+		`<a name="sec1"></a>`,
+	}
+
+	err := verify(lines)
+	Tassert(t, err != nil, "verify did not catch any errors")
 }
 
 func TestMarkdownPreprocessor(t *testing.T) {
