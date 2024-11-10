@@ -1,5 +1,3 @@
-File: /home/stevegt/lab/markproc/testdata/sections-out.md
-```markdown
 <a name="sec1"></a>
 # 1. Section 1
 
@@ -69,11 +67,11 @@ File: /home/stevegt/lab/markproc/testdata/sections-out.md
 <a name="sec4_1_1"></a>
 ### 4.1.1. Section 4.1.1
 
-<a name="sec0_1"></a>
-##### 0.1. Section 4.1.1.1
+<a name="sec4_1_1_1"></a>
+##### 4.1.1.1. Section 4.1.1.1
 
-<a name="sec0_2"></a>
-##### 0.2. Section 4.1.1.2
+<a name="sec4_1_1_2"></a>
+##### 4.1.1.2. Section 4.1.1.2
 
 <a name="sec4_2"></a>
 ## 4.2. Section 4.2
@@ -84,20 +82,20 @@ File: /home/stevegt/lab/markproc/testdata/sections-out.md
 <a name="sec5"></a>
 # 5. Section 5
 
-<a name="sec0_1"></a>
-### 0.1. Section 5.1
+<a name="sec5_1"></a>
+### 5.1. Section 5.1
 
-<a name="sec1_1"></a>
-#### 1.1. Section 5.1.1
+<a name="sec5_1_1"></a>
+#### 5.1.1. Section 5.1.1
 
-<a name="sec1_3"></a>
-##### 1.3. Section 5.1.1.1
+<a name="sec5_1_1_1"></a>
+##### 5.1.1.1 Section 5.1.1.1
 
-<a name="sec5_3"></a>
-## 5.3. Section 5.2
+<a name="sec5_2"></a>
+## 5.2. Section 5.2
 
 <a name="sec5_3_1"></a>
-### 5.3.1. Section 5.2.1
+### 5.2.1. Section 5.2.1
 
 <a name="sec6"></a>
 # 6. Section 6
@@ -164,5 +162,3 @@ File: /home/stevegt/lab/markproc/testdata/sections-out.md
 
 <a name="sec10_1_1_1_1"></a>
 ##### 10.1.1.1.1. Section 10.1.1.1.1
-```
-EOF_/home/stevegt/lab/markproc/testdata/sections-out.md

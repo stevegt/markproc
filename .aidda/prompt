@@ -1,13 +1,6 @@
-test complex section structure
+generate testdata/sections-out.md
 
-Refactor TestComplexSectionStructure to use hardcoded input and
-expected files in testdata/.  The test case should use an input
-document structure with at least 10 sections, each with at least 10
-subsections, with nesting ranging up to 5 levels deep, and with
-higher-level sections mixed in with lower-level sections in a random
-order.
 
-Each section title should be e.g "Section 1.3.2".  
 
 Sysmsg: You are an expert Go programmer. Please make the requested changes to the given code or documentation.
 In: 
@@ -15,9 +8,9 @@ In:
     README.md
     main.go
     main_test.go
-Out: 
-    main_test.go
     testdata/sections-in.md
+Out: 
+    testdata/sections-out.md
 
 .stop
 
