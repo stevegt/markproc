@@ -48,12 +48,12 @@ func TestPassMkHeads(t *testing.T) {
 	expectedLines := []string{
 		`<a name="sec1"></a># 1. Top-Level Header`,
 		"This is a paragraph.",
-		`<a name="sec1_1"></a>## 1.1 Sub-Level Header`,
+		`<a name="sec1_1"></a>## 1.1. Sub-Level Header`,
 	}
 
 	result := passMkHeads(lines)
 	if !reflect.DeepEqual(result, expectedLines) {
-		t.Errorf("passMkHeads failed:\nexpected: %v\ngot: %v", expectedLines, result)
+		t.Errorf("passMkHeads failed:\nwant: %v\nhave: %v", expectedLines, result)
 	}
 }
 
